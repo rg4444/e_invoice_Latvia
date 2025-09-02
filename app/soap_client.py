@@ -1,6 +1,7 @@
 import time
 import base64
 import os
+import uuid
 from datetime import datetime, timezone
 from hashlib import sha1
 import secrets
@@ -32,26 +33,80 @@ def wsse_username_token(username: str, password: str, use_digest=True):
     return header
 
 
-def build_soap_envelope(wsse_header_xml: str, invoice_xml: str):
-    return f"""<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
-  <soapenv:Header>
-    {wsse_header_xml}
-  </soapenv:Header>
-  <soapenv:Body>
-    {invoice_xml}
-  </soapenv:Body>
-</soapenv:Envelope>"""
+def _headers_for(cfg: dict) -> dict:
+    v = (cfg.get("soap_version") or "1.2").strip()
+    action = (cfg.get("soap_action") or "").strip()
+    if v == "1.1":
+        h = {"Content-Type": "text/xml; charset=utf-8"}
+        if action:
+            h["SOAPAction"] = action
+        return h
+    else:
+        ct = 'application/soap+xml; charset=utf-8'
+        if action:
+            ct = f'{ct}; action="{action}"'
+        return {"Content-Type": ct}
+
+
+def wsa_header(cfg: dict) -> str:
+    if not cfg.get("use_ws_addressing"):
+        return ""
+    to = cfg.get("endpoint", "")
+    action = cfg.get("soap_action", "")
+    mid = f"urn:uuid:{uuid.uuid4()}"
+    return f"""
+<wsa:Action xmlns:wsa="http://www.w3.org/2005/08/addressing">{action}</wsa:Action>
+<wsa:To xmlns:wsa="http://www.w3.org/2005/08/addressing">{to}</wsa:To>
+<wsa:MessageID xmlns:wsa="http://www.w3.org/2005/08/addressing">{mid}</wsa:MessageID>
+""".strip()
+
+
+def wsse_x509_header(cert_pem_path: str) -> str:
+    if not cert_pem_path or not os.path.exists(cert_pem_path):
+        return ""
+    pem = open(cert_pem_path, "rb").read()
+    b64 = base64.b64encode(b"".join([l for l in pem.splitlines() if b"-----" not in l])).decode()
+    return f"""
+<wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
+  <wsse:BinarySecurityToken
+      EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary"
+      ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3"
+      wsse:Id="X509Token">
+    {b64}
+  </wsse:BinarySecurityToken>
+</wsse:Security>
+""".strip()
+
+
+def build_soap_envelope(cfg: dict, body_xml: str) -> str:
+    wsse = ""
+    mode = cfg.get("wsse_mode", "username")
+    if mode == "username":
+        wsse = wsse_username_token(cfg.get("username", ""), cfg.get("password", ""), use_digest=True)
+    elif mode == "x509":
+        wsse = wsse_x509_header(cfg.get("client_cert", ""))
+
+    wsa = wsa_header(cfg)
+
+    v = (cfg.get("soap_version") or "1.2").strip()
+    ns = "http://schemas.xmlsoap.org/soap/envelope/" if v == "1.1" else "http://www.w3.org/2003/05/soap-envelope"
+
+    return f"""<soap:Envelope xmlns:soap="{ns}">
+  <soap:Header>
+    {wsa}
+    {wsse}
+  </soap:Header>
+  <soap:Body>
+    {body_xml}
+  </soap:Body>
+</soap:Envelope>"""
 
 
 def send_invoice(invoice_xml: str, cfg: dict):
-    wsse = wsse_username_token(cfg.get("username",""), cfg.get("password",""), use_digest=True)
-    soap_xml = build_soap_envelope(wsse, invoice_xml)
+    soap_xml = build_soap_envelope(cfg, invoice_xml)
 
-    headers = {"Content-Type": "text/xml; charset=utf-8"}
-    if cfg.get("soap_action"):
-        headers["SOAPAction"] = cfg["soap_action"]
+    headers = _headers_for(cfg)
 
-    # requests session with TLS settings
     verify = cfg.get("verify_tls", True)
     if cfg.get("ca_bundle"):
         verify = cfg["ca_bundle"]
@@ -60,8 +115,6 @@ def send_invoice(invoice_xml: str, cfg: dict):
     if cfg.get("client_cert") and cfg.get("client_key"):
         cert = (cfg["client_cert"], cfg["client_key"])
     elif cfg.get("client_p12"):
-        # Prefer native client pem/key pairs; for P12 you might pre-extract via openssl.
-        # For MVP, document: convert P12 -> pem/key (see README). Keep field for future automation.
         pass
 
     t0 = time.time()
@@ -71,7 +124,7 @@ def send_invoice(invoice_xml: str, cfg: dict):
         data=soap_xml.encode("utf-8"),
         verify=verify,
         cert=cert,
-        timeout=45
+        timeout=45,
     )
     elapsed_ms = int((time.time() - t0) * 1000)
 
@@ -79,16 +132,16 @@ def send_invoice(invoice_xml: str, cfg: dict):
         "request": {
             "url": cfg["endpoint"],
             "headers": headers,
-            "body": soap_xml
+            "body": soap_xml,
         },
         "response": {
             "status": resp.status_code,
             "headers": dict(resp.headers),
-            "body": resp.text
+            "body": resp.text,
         },
-        "timing_ms": elapsed_ms
+        "timing_ms": elapsed_ms,
     }
 
-    # success check (simple substring match)
-    ok = (resp.status_code == 200) and (cfg.get("success_indicator","") in resp.text)
+    ok = (resp.status_code == 200) and (cfg.get("success_indicator", "") in resp.text)
     return ok, debug
+

@@ -4,6 +4,9 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from dotenv import load_dotenv
+from zeep import Client, Settings
+from zeep.transports import Transport
+from requests import Session
 
 from storage import load_config, save_config
 from tools import (
@@ -57,6 +60,8 @@ def home():
 @app.post("/save-config")
 def save_config_route(
     endpoint: str = Form(""), soap_action: str = Form(""),
+    soap_version: str = Form("1.2"), use_ws_addressing: bool = Form(False),
+    wsse_mode: str = Form("username"),
     username: str = Form(""), password: str = Form(""),
     client_cert: str = Form(""), client_key: str = Form(""),
     client_key_pass: str = Form(""),
@@ -68,6 +73,9 @@ def save_config_route(
     cfg.update({
         "endpoint": endpoint.strip(),
         "soap_action": soap_action.strip(),
+        "soap_version": soap_version.strip(),
+        "use_ws_addressing": use_ws_addressing,
+        "wsse_mode": wsse_mode,
         "username": username,
         "password": password,
         "client_cert": client_cert.strip(),
@@ -231,6 +239,35 @@ async def invoice_set(request: Request):
     data = await request.json()
     INVOICE_XML = data.get("xml","")
     return JSONResponse({"status":"ok", "len": len(INVOICE_XML)})
+
+
+@app.post("/wsdl/load")
+def wsdl_load(url: str = Form(""), single: bool = Form(True)):
+    cfg = load_config()
+    wsdl_url = url or (cfg["endpoint"] + ("?singleWsdl" if single else "?wsdl"))
+
+    s = Session()
+    s.verify = cfg.get("ca_bundle") or cfg.get("verify_tls", True)
+    cert = (cfg.get("client_cert"), cfg.get("client_key"))
+    if all(cert):
+        s.cert = cert
+
+    transport = Transport(session=s, timeout=30)
+    settings = Settings(strict=False, xml_huge_tree=True)
+    cl = Client(wsdl=wsdl_url, transport=transport, settings=settings)
+
+    ops = []
+    for svc in cl.wsdl.services.values():
+        for port in svc.ports.values():
+            for op in port.binding._operations.values():
+                ops.append({
+                    "service": svc.name,
+                    "port": port.name,
+                    "name": op.name,
+                    "soap_action": op.soapaction,
+                    "input": str(op.input.signature(cl.wsdl.types)),
+                })
+    return JSONResponse({"wsdl": wsdl_url, "operations": ops})
 
 @app.get("/schema", response_class=HTMLResponse)
 def schema_page():
