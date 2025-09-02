@@ -8,36 +8,55 @@ def _el(tag, nsmap=None, text=None):
     return el
 
 
-def _safe_tag(ns_prefix, local):
-    return f"{{{ns_prefix}}}{local}" if ns_prefix and local else local
-
-
 def _walk_part(el, xsd_type, depth=0, max_depth=4):
-    """Very simple recursive skeleton: sequences/elements -> empty tags, simple types -> placeholder text."""
+    """Minimal recursive skeleton: complex types -> child elements; simple types -> <value>."""
     if depth > max_depth or xsd_type is None:
         return
+    # complexType
     if hasattr(xsd_type, "elements"):
-        for name, sub in xsd_type.elements:
-            child = etree.SubElement(el, name.text if hasattr(name, "text") else name)
-            sub_type = getattr(sub, "type", None)
-            if sub_type is not None and getattr(sub_type, "elements", None):
-                _walk_part(child, sub_type, depth + 1, max_depth)
-            else:
-                child.text = "<value>"
+        try:
+            for name, sub in xsd_type.elements:
+                # name may be a QName or string
+                tag = getattr(name, "text", None) or str(name)
+                child = etree.SubElement(el, tag)
+                sub_type = getattr(sub, "type", None)
+                if sub_type is not None and getattr(sub_type, "elements", None):
+                    _walk_part(child, sub_type, depth+1, max_depth)
+                else:
+                    child.text = "<value>"
+        except Exception:
+            el.text = "<value>"
     else:
         el.text = "<value>"
 
 
+def _resolve_namespace_from_op(client, service_name, port_name, operation_name):
+    svc = client.wsdl.services[service_name]
+    port = svc.ports[port_name]
+    op = port.binding._operations[operation_name]
+    # Prefer the input body type QName namespace
+    body = getattr(op.input, "body", None)
+    if body is not None:
+        tp = getattr(body, "type", None)
+        qn = getattr(tp, "qname", None)
+        if qn is not None and getattr(qn, "namespace", None):
+            return qn.namespace
+    # Fallback to WSDL tns
+    return getattr(client.wsdl, "tns", None)
+
+
 def build_body_template(client, service_name, port_name, operation_name):
-    """Return <ns:Operation>...</ns:Operation> skeleton based on input body type."""
     svc = client.wsdl.services[service_name]
     port = svc.ports[port_name]
     op = port.binding._operations[operation_name]
 
-    target_ns = port.binding.wsdl.port_type._name.namespace
-    nsmap = {"tns": target_ns}
+    target_ns = _resolve_namespace_from_op(client, service_name, port_name, operation_name)
+    nsmap = {"tns": target_ns} if target_ns else None
 
-    root = _el(_safe_tag(target_ns, operation_name), nsmap=nsmap)
+    # Root element name: use the operation name in the target namespace if possible
+    # For document/literal wrapped, this is usually correct.
+    root_tag = f"{{{target_ns}}}{operation_name}" if target_ns else operation_name
+    root = _el(root_tag, nsmap=nsmap)
 
     body = getattr(op.input, "body", None)
     if body is not None and getattr(body, "type", None) is not None:
@@ -46,3 +65,4 @@ def build_body_template(client, service_name, port_name, operation_name):
         etree.SubElement(root, "payload").text = "<value>"
 
     return etree.tostring(root, encoding="utf-8", pretty_print=True).decode("utf-8")
+
