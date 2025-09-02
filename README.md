@@ -141,6 +141,36 @@ README.md
 - **Custom CA bundles**:
   If the endpoint uses a private CA, place it under `data/trust/ca.pem` and set the path in Config.
 
+## Generate Certificate (Key + CSR)
+
+Use the **Generate Certificate** tab to create your private key and certificate signing request:
+
+1. Open **Generate Certificate** (first tab).
+2. Fill Subject (DN) fields (C, ST, L, O, OU, CN, email).
+3. (Optional) Enter a key passphrase.  \
+   - If you use a passphrase, the key will be encrypted (AES-256) and you must provide this passphrase later in Config (for the TLS probe and sending).
+4. Click **Generate Key & CSR**.
+
+The app writes files to `/data/certs/`:
+- `client.key` (or `{base}.key`) — your private key, **keep it safe**.
+- `client.csr` (or `{base}.csr`) — send this to **VDAA** for issuance.
+
+**After issuance**
+- VDAA returns `client.cer` (your cert) and optionally `chain.p7b` (CA chain).
+- Go to **Config → Find & Convert**, choose `/data/certs` and click **Find and convert**.  \
+  This will produce:
+  - `client.pem`, `chain.pem`, `client_full.pem` (cert + chain)
+- Ensure **Config** paths:
+  - Client cert (PEM): `/data/certs/client_full.pem`
+  - Client key (PEM):  `/data/certs/client.key`
+  - CA bundle:         `/data/certs/chain.pem`
+- Click **Verify chain & TLS probe** to confirm connectivity.
+
+> Requirements (per VDAA/VISS guidance):
+> - RSA **2048-bit** key
+> - SHA-256 for CSR
+> - Keep the **private key** private. Do not email/upload it.
+
 ## Find & Convert (OpenSSL)
 
 The Config screen now offers a **Find & Convert** panel. It scans a directory under `/data` for a private key (`*.key`), client certificate (`*.cer`/`*.crt`/`*.pem`), and chain file (`*.p7b`/`*.p7c`). The tool assembles `client.pem`, `chain.pem`, `client_full.pem`, and optionally `client.p12`, then applies these paths to the configuration.
