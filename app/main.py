@@ -1,4 +1,5 @@
-import os, logging
+import os, logging, base64, uuid
+from datetime import datetime
 from fastapi import FastAPI, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -26,7 +27,8 @@ from tools import (
     file_download_response,
 )
 from validation import validate_xsd
-from soap_client import send_invoice
+from utils_attachments import read_file_b64, new_content_id
+from soap_client import send_invoice, send_raw_envelope
 
 load_dotenv()
 LOG_DIR = "/data/logs"
@@ -47,6 +49,7 @@ env = Environment(
 # In-memory invoice editor state
 INVOICE_XML = ""
 DEFAULT_INVOICE = os.getenv("DEFAULT_INVOICE", "/data/samples/einvoice_nePVN2.xml")
+CHUNK_STATE = {}
 
 @app.on_event("startup")
 def load_defaults():
@@ -56,6 +59,24 @@ def load_defaults():
 
 def render(tpl, **ctx):
     return HTMLResponse(env.get_template(tpl).render(**ctx))
+
+
+def _log_div_call(operation: str, req_xml: str, resp_xml: str, took_ms: int, cfg: dict):
+    os.makedirs(LOG_DIR, exist_ok=True)
+    path = os.path.join(LOG_DIR, "div.log")
+    tls = {
+        "client_cert": cfg.get("client_cert", ""),
+        "client_key": cfg.get("client_key", ""),
+        "ca_bundle": cfg.get("ca_bundle", ""),
+    }
+    with open(path, "a", encoding="utf-8") as f:
+        ts = datetime.utcnow().isoformat()
+        f.write(f"{ts} {operation} {took_ms}ms\n")
+        f.write(f"TLS: {tls}\n")
+        f.write("Request:\n")
+        f.write(req_xml + "\n")
+        f.write("Response:\n")
+        f.write(resp_xml + "\n\n")
 
 
 def _wsdl_session(cfg):
@@ -569,7 +590,10 @@ def validate_route():
 @app.get("/send", response_class=HTMLResponse)
 def send_page():
     cfg = load_config()
-    return render("send.html", cfg=cfg, xml=INVOICE_XML)
+    samples = []
+    if os.path.isdir("/data/samples"):
+        samples = [os.path.join("/data/samples", f) for f in os.listdir("/data/samples")]
+    return render("send.html", cfg=cfg, xml=INVOICE_XML, samples=samples)
 
 @app.post("/send")
 def send_route():
@@ -583,3 +607,293 @@ def send_route():
         f.write(debug["response"]["body"])
     logging.info("POST %s -> %s in %dms", debug["request"]["url"], debug["response"]["status"], debug["timing_ms"])
     return JSONResponse({"ok": ok, "debug": debug})
+
+
+@app.post("/div/attachment")
+def div_attachment(path: str = Form("")):
+    try:
+        b64, length = read_file_b64(path)
+        mime = "application/xml" if path.lower().endswith(".xml") else "application/octet-stream"
+        return JSONResponse({
+            "ok": True,
+            "contents": b64,
+            "length": length,
+            "filename": os.path.basename(path),
+            "mime": mime,
+        })
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+
+@app.post("/div/sendmessage")
+def div_sendmessage(
+    attachment_path: str = Form(""),
+    mime_type: str = Form("application/xml"),
+    sender_eaddr: str = Form(""),
+    recipient_eaddr: str = Form(""),
+    client_msg_id: str = Form(""),
+):
+    cfg = load_config()
+    if not cfg.get("soap_action"):
+        return JSONResponse({"ok": False, "error": "SOAPAction not set. Pick operation from WSDL Browser → Use in Send."}, status_code=400)
+
+    att_b64, att_len = ("", "0")
+    content_id = new_content_id()
+    if attachment_path:
+        att_b64, att_len = read_file_b64(attachment_path)
+
+    ns = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
+    body = f"""
+    <tns:SendMessage xmlns:tns="{ns}">
+      <tns:Envelope>
+        <MessageClientId>{client_msg_id or uuid.uuid4()}</MessageClientId>
+        <SenderEAddress>{sender_eaddr}</SenderEAddress>
+        <Recipients>
+          <Recipient>
+            <EAddress>{recipient_eaddr}</EAddress>
+          </Recipient>
+        </Recipients>
+        <Subject>Test e-invoice</Subject>
+        <BodyText>Test transmission from e-Rēķini Tester</BodyText>
+      </tns:Envelope>
+      <tns:AttachmentsInput>
+        <AttachmentInput>
+          <ContentId>{content_id}</ContentId>
+          <FileName>invoice.xml</FileName>
+          <MimeType>{mime_type}</MimeType>
+          <Contents>{att_b64}</Contents>
+        </AttachmentInput>
+      </tns:AttachmentsInput>
+    </tns:SendMessage>
+    """.strip()
+
+    env = f"""<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+                             xmlns:wsa="http://www.w3.org/2005/08/addressing">
+  <soap:Header>
+    <wsa:Action>{cfg.get("soap_action","")}</wsa:Action>
+    <wsa:To>{cfg.get("endpoint","")}</wsa:To>
+    <wsa:MessageID>urn:uuid:{uuid.uuid4()}</wsa:MessageID>
+  </soap:Header>
+  <soap:Body>
+{body}
+  </soap:Body>
+</soap:Envelope>"""
+
+    res = send_raw_envelope(cfg, env)
+    msg_id = None
+    if res.get("response_xml"):
+        import re
+        m = re.search(r"<MessageId>([^<]+)</MessageId>", res["response_xml"])
+        if m:
+            msg_id = m.group(1)
+    if msg_id:
+        cfg["last_message_id"] = msg_id
+        save_config(cfg)
+
+    _log_div_call("SendMessage", res.get("request_xml", env), res.get("response_xml", ""), res.get("took_ms", 0), cfg)
+    return JSONResponse({**res, "inferred_message_id": msg_id})
+
+
+@app.post("/div/init")
+def div_init(
+    attachment_path: str = Form(""),
+    mime_type: str = Form("application/xml"),
+    sender_eaddr: str = Form(""),
+    recipient_eaddr: str = Form(""),
+    client_msg_id: str = Form(""),
+    chunk_size: int = Form(524288),
+):
+    cfg = load_config()
+    if not cfg.get("soap_action"):
+        return JSONResponse({"ok": False, "error": "SOAPAction not set."}, status_code=400)
+
+    raw = b""
+    att_len = "0"
+    file_name = ""
+    if attachment_path:
+        with open(attachment_path, "rb") as f:
+            raw = f.read()
+        att_len = str(len(raw))
+        file_name = os.path.basename(attachment_path)
+    content_id = new_content_id()
+    chunks = []
+    if raw:
+        for i in range(0, len(raw), chunk_size):
+            chunk = base64.b64encode(raw[i:i+chunk_size]).decode("ascii")
+            chunks.append(chunk)
+
+    ns = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
+    body = f"""
+    <tns:InitSendMessage xmlns:tns="{ns}">
+      <tns:Envelope>
+        <MessageClientId>{client_msg_id or uuid.uuid4()}</MessageClientId>
+        <SenderEAddress>{sender_eaddr}</SenderEAddress>
+        <Recipients>
+          <Recipient>
+            <EAddress>{recipient_eaddr}</EAddress>
+          </Recipient>
+        </Recipients>
+        <Subject>Test e-invoice</Subject>
+        <BodyText>Test transmission from e-Rēķini Tester</BodyText>
+      </tns:Envelope>
+      <tns:AttachmentsInput>
+        <AttachmentInput>
+          <ContentId>{content_id}</ContentId>
+          <FileName>{file_name or 'attachment.bin'}</FileName>
+          <MimeType>{mime_type}</MimeType>
+          <Length>{att_len}</Length>
+        </AttachmentInput>
+      </tns:AttachmentsInput>
+    </tns:InitSendMessage>
+    """.strip()
+
+    env = f"""<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+                             xmlns:wsa="http://www.w3.org/2005/08/addressing">
+  <soap:Header>
+    <wsa:Action>{cfg.get("soap_action","")}</wsa:Action>
+    <wsa:To>{cfg.get("endpoint","")}</wsa:To>
+    <wsa:MessageID>urn:uuid:{uuid.uuid4()}</wsa:MessageID>
+  </soap:Header>
+  <soap:Body>
+{body}
+  </soap:Body>
+</soap:Envelope>"""
+
+    res = send_raw_envelope(cfg, env)
+    msg_id = None
+    if res.get("response_xml"):
+        import re
+        m = re.search(r"<MessageId>([^<]+)</MessageId>", res["response_xml"])
+        if m:
+            msg_id = m.group(1)
+    if msg_id:
+        cfg["last_message_id"] = msg_id
+        cfg["last_content_id"] = content_id
+        save_config(cfg)
+
+    CHUNK_STATE.clear()
+    CHUNK_STATE.update({
+        "chunks": chunks,
+        "message_id": msg_id,
+        "content_id": content_id,
+        "mime_type": mime_type,
+        "file_name": file_name,
+        "sender": sender_eaddr,
+        "recipient": recipient_eaddr,
+        "client_msg_id": client_msg_id or str(uuid.uuid4()),
+    })
+
+    _log_div_call("InitSendMessage", env, res.get("response_xml", ""), res.get("took_ms", 0), cfg)
+    return JSONResponse({**res, "message_id": msg_id, "content_id": content_id, "chunk_count": len(chunks)})
+
+
+@app.post("/div/sendsection")
+def div_sendsection(index: int = Form(0)):
+    cfg = load_config()
+    chunk = CHUNK_STATE.get("chunks", [])
+    if index >= len(chunk):
+        return JSONResponse({"ok": False, "error": "Invalid section index"}, status_code=400)
+
+    ns = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
+    body = f"""
+    <tns:SendAttachmentSection xmlns:tns="{ns}">
+      <tns:MessageId>{CHUNK_STATE.get('message_id')}</tns:MessageId>
+      <tns:ContentId>{CHUNK_STATE.get('content_id')}</tns:ContentId>
+      <tns:SectionIndex>{index}</tns:SectionIndex>
+      <tns:SectionContents>{chunk[index]}</tns:SectionContents>
+    </tns:SendAttachmentSection>
+    """.strip()
+
+    env = f"""<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+                             xmlns:wsa="http://www.w3.org/2005/08/addressing">
+  <soap:Header>
+    <wsa:Action>{cfg.get("soap_action","")}</wsa:Action>
+    <wsa:To>{cfg.get("endpoint","")}</wsa:To>
+    <wsa:MessageID>urn:uuid:{uuid.uuid4()}</wsa:MessageID>
+  </soap:Header>
+  <soap:Body>
+{body}
+  </soap:Body>
+</soap:Envelope>"""
+
+    res = send_raw_envelope(cfg, env)
+    _log_div_call("SendAttachmentSection", env, res.get("response_xml", ""), res.get("took_ms", 0), cfg)
+    return JSONResponse(res)
+
+
+@app.post("/div/complete")
+def div_complete():
+    cfg = load_config()
+    ns = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
+    body = f"""
+    <tns:CompleteSendMessage xmlns:tns="{ns}">
+      <tns:MessageId>{CHUNK_STATE.get('message_id')}</tns:MessageId>
+      <tns:Envelope>
+        <MessageClientId>{CHUNK_STATE.get('client_msg_id')}</MessageClientId>
+        <SenderEAddress>{CHUNK_STATE.get('sender')}</SenderEAddress>
+        <Recipients>
+          <Recipient><EAddress>{CHUNK_STATE.get('recipient')}</EAddress></Recipient>
+        </Recipients>
+        <Subject>Test e-invoice</Subject>
+        <BodyText>Test transmission from e-Rēķini Tester</BodyText>
+      </tns:Envelope>
+      <tns:AttachmentsInput>
+        <AttachmentInput>
+          <ContentId>{CHUNK_STATE.get('content_id')}</ContentId>
+          <FileName>{CHUNK_STATE.get('file_name')}</FileName>
+          <MimeType>{CHUNK_STATE.get('mime_type')}</MimeType>
+        </AttachmentInput>
+      </tns:AttachmentsInput>
+    </tns:CompleteSendMessage>
+    """.strip()
+
+    env = f"""<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+                             xmlns:wsa="http://www.w3.org/2005/08/addressing">
+  <soap:Header>
+    <wsa:Action>{cfg.get("soap_action","")}</wsa:Action>
+    <wsa:To>{cfg.get("endpoint","")}</wsa:To>
+    <wsa:MessageID>urn:uuid:{uuid.uuid4()}</wsa:MessageID>
+  </soap:Header>
+  <soap:Body>
+{body}
+  </soap:Body>
+</soap:Envelope>"""
+
+    res = send_raw_envelope(cfg, env)
+    _log_div_call("CompleteSendMessage", env, res.get("response_xml", ""), res.get("took_ms", 0), cfg)
+    return JSONResponse(res)
+
+
+@app.post("/div/confirm")
+def div_confirm(message_id: str = Form("")):
+    cfg = load_config()
+    mid = message_id or cfg.get("last_message_id")
+    if not mid:
+        return JSONResponse({"ok": False, "error": "MessageId not provided"}, status_code=400)
+
+    ns = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
+    body = f"""
+    <tns:GetMessageServerConfirmation xmlns:tns="{ns}">
+      <tns:MessageId>{mid}</tns:MessageId>
+    </tns:GetMessageServerConfirmation>
+    """.strip()
+
+    env = f"""<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+                             xmlns:wsa="http://www.w3.org/2005/08/addressing">
+  <soap:Header>
+    <wsa:Action>{cfg.get("soap_action","")}</wsa:Action>
+    <wsa:To>{cfg.get("endpoint","")}</wsa:To>
+    <wsa:MessageID>urn:uuid:{uuid.uuid4()}</wsa:MessageID>
+  </soap:Header>
+  <soap:Body>
+{body}
+  </soap:Body>
+</soap:Envelope>"""
+
+    res = send_raw_envelope(cfg, env)
+    statuses = []
+    if res.get("response_xml"):
+        import re
+        statuses = re.findall(r"<Status[^>]*>([^<]+)</Status[^>]*>", res["response_xml"])
+    _log_div_call("GetMessageServerConfirmation", env, res.get("response_xml", ""), res.get("took_ms", 0), cfg)
+    return JSONResponse({**res, "statuses": statuses})

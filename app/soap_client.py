@@ -145,3 +145,35 @@ def send_invoice(invoice_xml: str, cfg: dict):
     ok = (resp.status_code == 200) and (cfg.get("success_indicator", "") in resp.text)
     return ok, debug
 
+
+def send_raw_envelope(cfg: dict, envelope_xml: str) -> dict:
+    """Send a pre-built SOAP envelope."""
+    headers = _headers_for(cfg)
+
+    verify = cfg.get("verify_tls", True)
+    if cfg.get("ca_bundle"):
+        verify = cfg["ca_bundle"]
+
+    cert = None
+    if cfg.get("client_cert") and cfg.get("client_key"):
+        cert = (cfg["client_cert"], cfg["client_key"])
+
+    t0 = time.time()
+    resp = requests.post(
+        cfg["endpoint"],
+        headers=headers,
+        data=envelope_xml.encode("utf-8"),
+        verify=verify,
+        cert=cert,
+        timeout=45,
+    )
+    elapsed_ms = int((time.time() - t0) * 1000)
+
+    return {
+        "ok": resp.status_code == 200,
+        "http_status": resp.status_code,
+        "took_ms": elapsed_ms,
+        "request_xml": envelope_xml,
+        "response_xml": resp.text,
+    }
+

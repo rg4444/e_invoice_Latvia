@@ -1,5 +1,51 @@
 {% extends "base.html" %}{% block content %}
 <h2>Send & Debug</h2>
+
+<datalist id="sample_files">
+{% for s in samples %}
+  <option value="{{ s }}">
+{% endfor %}
+</datalist>
+
+<div class="mb-3 border p-3">
+  <h4>DIV Quickflows</h4>
+  <div class="mb-2">
+    <label>Attachment file
+      <input id="div_attachment" class="form-control" list="sample_files">
+    </label>
+  </div>
+  <div class="mb-2">
+    <label>MIME type
+      <input id="div_mime" class="form-control" value="application/xml">
+    </label>
+  </div>
+  <div class="mb-2">
+    <label>Chunk size
+      <input id="div_chunk" class="form-control" value="524288">
+    </label>
+  </div>
+  <div class="mb-2">
+    <label>Sender E-address
+      <input id="div_sender" class="form-control">
+    </label>
+  </div>
+  <div class="mb-2">
+    <label>Recipient E-address
+      <input id="div_recipient" class="form-control">
+    </label>
+  </div>
+  <div class="mb-2">
+    <label>Client message ID
+      <input id="div_client_id" class="form-control">
+    </label>
+  </div>
+  <div class="mb-2">
+    <button id="div_send_single" class="btn btn-secondary">SendMessage</button>
+    <button id="div_send_chunked" class="btn btn-secondary">Chunked Send</button>
+    <button id="div_check_confirm" class="btn btn-secondary">Check Confirmation</button>
+  </div>
+</div>
+
 <div class="mb-3">
   <label>SOAPAction
     <input id="soap_action" class="form-control" value="{{ cfg.soap_action }}">
@@ -7,6 +53,13 @@
 </div>
 <div class="mb-3">
   <textarea id="body_xml" rows="18" class="form-control">{{ xml }}</textarea>
+</div>
+<div class="mb-3">
+  <label>Attachment helper</label>
+  <div class="input-group">
+    <input id="helper_path" class="form-control" list="sample_files">
+    <button id="helper_inject" class="btn btn-outline-secondary" type="button">Inject</button>
+  </div>
 </div>
 <button id="send" class="btn btn-primary mb-3">Validate & Send</button>
 <pre id="dbg" class="mt-3"></pre>
@@ -23,6 +76,56 @@ document.addEventListener('DOMContentLoaded', ()=>{
 });
 
 const cfg = {{ cfg | tojson | safe }};
+
+document.getElementById('div_client_id').value = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString());
+
+document.getElementById('helper_inject').addEventListener('click', async ()=>{
+  const p = document.getElementById('helper_path').value;
+  const fd = new FormData();
+  fd.append('path', p);
+  const res = await fetch('/div/attachment', {method:'POST', body: fd}).then(r=>r.json());
+  if(!res.ok){ alert('Failed to read file'); return; }
+  const ta = document.getElementById('body_xml');
+  ta.value = ta.value.replace(/<Contents>[^<]*<\/Contents>/, `<Contents>${res.contents}</Contents>`);
+  ta.value = ta.value.replace(/<MimeType>[^<]*<\/MimeType>/, `<MimeType>${res.mime}</MimeType>`);
+  ta.value = ta.value.replace(/<FileName>[^<]*<\/FileName>/, `<FileName>${res.filename}</FileName>`);
+});
+
+document.getElementById('div_send_single').addEventListener('click', async ()=>{
+  const fd = new FormData();
+  fd.append('attachment_path', document.getElementById('div_attachment').value);
+  fd.append('mime_type', document.getElementById('div_mime').value);
+  fd.append('sender_eaddr', document.getElementById('div_sender').value);
+  fd.append('recipient_eaddr', document.getElementById('div_recipient').value);
+  fd.append('client_msg_id', document.getElementById('div_client_id').value);
+  const res = await fetch('/div/sendmessage', {method:'POST', body: fd}).then(r=>r.json());
+  const conf = await fetch('/div/confirm', {method:'POST'}).then(r=>r.json());
+  document.getElementById('dbg').textContent = JSON.stringify({send: res, confirm: conf}, null, 2);
+});
+
+document.getElementById('div_send_chunked').addEventListener('click', async ()=>{
+  const fd = new FormData();
+  fd.append('attachment_path', document.getElementById('div_attachment').value);
+  fd.append('mime_type', document.getElementById('div_mime').value);
+  fd.append('sender_eaddr', document.getElementById('div_sender').value);
+  fd.append('recipient_eaddr', document.getElementById('div_recipient').value);
+  fd.append('client_msg_id', document.getElementById('div_client_id').value);
+  fd.append('chunk_size', document.getElementById('div_chunk').value);
+  const init = await fetch('/div/init', {method:'POST', body: fd}).then(r=>r.json());
+  for(let i=0;i<(init.chunk_count||0);i++){
+    const fd2 = new FormData();
+    fd2.append('index', i);
+    await fetch('/div/sendsection', {method:'POST', body: fd2});
+  }
+  await fetch('/div/complete', {method:'POST'});
+  const conf = await fetch('/div/confirm', {method:'POST'}).then(r=>r.json());
+  document.getElementById('dbg').textContent = JSON.stringify(conf, null, 2);
+});
+
+document.getElementById('div_check_confirm').addEventListener('click', async ()=>{
+  const res = await fetch('/div/confirm', {method:'POST'}).then(r=>r.json());
+  document.getElementById('dbg').textContent = JSON.stringify(res, null, 2);
+});
 
 document.getElementById('send').addEventListener('click', async ()=>{
   const body = document.getElementById('body_xml').value;
