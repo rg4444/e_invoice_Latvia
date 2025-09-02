@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 # Add Java runtime for Schematron (Saxon-HE)
-RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jre-headless curl unzip openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openjdk-21-jre-headless curl unzip openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Put Saxon-HE under /opt/saxon
 RUN mkdir -p /opt/saxon
