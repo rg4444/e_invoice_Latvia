@@ -1,0 +1,12 @@
+services:
+  erekini:
+    build: ./docker
+    ports:
+      - "9595:9595"
+    volumes:
+      - ./app:/app
+      - ./data:/data
+    environment:
+      - APP_SECRET=${APP_SECRET}
+      - DEFAULT_SCHEMA=${DEFAULT_SCHEMA}
+      - DEFAULT_INVOICE=${DEFAULT_INVOICE}

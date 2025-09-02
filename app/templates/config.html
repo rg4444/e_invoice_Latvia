@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block content %}
+<h2>Configuration</h2>
+<form id="cfg">
+  <label>Endpoint <input name="endpoint" value="{{cfg.endpoint}}"></label>
+  <label>SOAPAction <input name="soap_action" value="{{cfg.soap_action}}"></label>
+  <label>Username <input name="username" value="{{cfg.username}}"></label>
+  <label>Password <input type="password" name="password" value="{{cfg.password}}"></label>
+  <label>Client cert (PEM) <input name="client_cert" value="{{cfg.client_cert}}"></label>
+  <label>Client key (PEM) <input name="client_key" value="{{cfg.client_key}}"></label>
+  <label>Client PKCS#12 <input name="client_p12" value="{{cfg.client_p12}}"></label>
+  <label>P12 password <input type="password" name="p12_password" value="{{cfg.p12_password}}"></label>
+  <label>CA bundle (optional) <input name="ca_bundle" value="{{cfg.ca_bundle}}"></label>
+  <label>Verify TLS <input type="checkbox" name="verify_tls" {% if cfg.verify_tls %}checked{% endif %}></label>
+  <label>XSD entry <input name="schema_path" value="{{cfg.schema_path}}"></label>
+  <label>Success indicator <input name="success_indicator" value="{{cfg.success_indicator}}"></label>
+  <button type="submit">Save</button>
+</form>
+<script>
+document.getElementById('cfg').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch('/save-config', { method:'POST', body: fd });
+  alert('Saved');
+});
+</script>
+{% endblock %}

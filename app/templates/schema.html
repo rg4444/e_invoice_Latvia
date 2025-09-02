@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block content %}
+<h2>Schema Validation</h2>
+<p>Entry XSD: <code>{{ cfg.schema_path }}</code></p>
+<button id="validate">Validate Invoice</button>
+<pre id="out"></pre>
+<script>
+document.getElementById('validate').addEventListener('click', async ()=>{
+  const res = await fetch('/validate', { method:'POST' });
+  const json = await res.json();
+  const out = document.getElementById('out');
+  if (json.ok) out.textContent = "✔ XSD validation OK";
+  else out.textContent = "✖ XSD validation failed:\n\n" + json.issues.join("\n");
+});
+</script>
+{% endblock %}
