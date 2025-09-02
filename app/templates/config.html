@@ -1,5 +1,10 @@
 {% extends "base.html" %}{% block content %}
 <h2>Configuration</h2>
+<div class="mb-3">
+  <button id="load_wsdl" class="btn btn-secondary mb-3">Load WSDL</button>
+  <ul id="wsdl_ops" class="list-group"></ul>
+  <div id="wsdl_err" class="text-danger"></div>
+</div>
 <h3>Find & Convert (OpenSSL)</h3>
 <p>Choose a directory under <code>/data</code> that contains your certificate files.
 I will look for: <code>.key</code> (private key), <code>.cer</code>/<code>.pem</code> (client cert), and <code>.p7b</code>/<code>.p7c</code> (chain).</p>
@@ -145,6 +150,43 @@ document.getElementById('fix').addEventListener('click', async ()=>{
   </div>
   <button type="submit" class="btn btn-primary">Save</button>
 </form>
+<script>
+const cfg = {{ cfg | tojson | safe }};
+document.getElementById('load_wsdl').addEventListener('click', async ()=>{
+  const fd = new FormData();
+  const res = await fetch('/wsdl/load', { method:'POST', body: fd });
+  const ops = document.getElementById('wsdl_ops');
+  const err = document.getElementById('wsdl_err');
+  ops.innerHTML = '';
+  err.textContent = '';
+  if (!res.ok) {
+    err.textContent = 'Failed to load WSDL';
+    return;
+  }
+  const js = await res.json();
+  if (!js.operations || !js.operations.length) {
+    err.textContent = 'No operations found';
+    return;
+  }
+  js.operations.forEach(op => {
+    const li = document.createElement('li');
+    li.textContent = `${op.name} (${op.soap_action})`;
+    li.className = 'list-group-item list-group-item-action';
+    li.style.cursor = 'pointer';
+    li.addEventListener('click', async ()=>{
+      const fd = new FormData();
+      Object.entries(cfg).forEach(([k,v]) => fd.append(k, v));
+      fd.set('soap_action', op.soap_action || '');
+      await fetch('/save-config', { method:'POST', body: fd });
+      cfg.soap_action = op.soap_action || '';
+      const body = `<${op.name}></${op.name}>`;
+      await fetch('/invoice/set', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({xml: body})});
+      alert(`Selected operation ${op.name}`);
+    });
+    ops.appendChild(li);
+  });
+});
+</script>
 <script>
 document.getElementById('cfg').addEventListener('submit', async (e) => {
   e.preventDefault();
