@@ -67,6 +67,27 @@ def _wsdl_session(cfg):
     return s
 
 
+def _op_namespace(op, client):
+    """
+    Prefer the operation input body type QName namespace.
+    Fallback to the WSDL target namespace (client.wsdl.tns).
+    """
+    try:
+        body = getattr(op.input, "body", None)
+        if body is not None:
+            tp = getattr(body, "type", None)
+            qn = getattr(tp, "qname", None)
+            if qn is not None and getattr(qn, "namespace", None):
+                return qn.namespace
+    except Exception:
+        pass
+    # Fallback
+    try:
+        return client.wsdl.tns
+    except Exception:
+        return None
+
+
 @app.get("/cert", response_class=HTMLResponse)
 def certgen_page():
     defaults = {
@@ -451,19 +472,27 @@ def wsdl_inspect(url: str = Form(""), prefer_multi: bool = Form(True)):
             for svc in cl.wsdl.services.values():
                 for port in svc.ports.values():
                     for op in port.binding._operations.values():
+                        ns = _op_namespace(op, cl)
+                        sig = ""
+                        try:
+                            sig = op.input.signature(cl.wsdl.types)
+                        except Exception:
+                            sig = "(signature unavailable)"
                         ops.append({
                             "service": str(svc.name),
                             "port": str(port.name),
                             "operation": str(op.name),
                             "soap_action": op.soapaction,
-                            "input_signature": op.input.signature(cl.wsdl.types),
-                            "ns": port.binding.wsdl.port_type._name.namespace,
+                            "ns": ns,
+                            "input_signature": sig,
                         })
             return JSONResponse({"ok": True, "url": wsdl_url, "count": len(ops), "operations": ops})
         except NotImplementedError as e:
-            errors.append({"url": wsdl_url, "stage": "wsdl-parse", "error": str(e)})
+            errors.append({"url": wsdl_url, "stage": "wsdl-parse", "error": str(e),
+                           "hint": "WCF ?singleWsdl can omit schemaLocation. Prefer ?wsdl."})
         except requests.exceptions.SSLError as e:
-            errors.append({"url": wsdl_url, "stage": "tls-verify", "error": str(e)})
+            errors.append({"url": wsdl_url, "stage": "tls-verify", "error": str(e),
+                           "hint": "Use system CA for public hosts; do not set CA bundle to the client chain for WSDL fetch."})
         except Exception as e:
             errors.append({"url": wsdl_url, "stage": "zeep-init", "error": str(e)})
 
