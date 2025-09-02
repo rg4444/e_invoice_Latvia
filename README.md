@@ -104,7 +104,7 @@ README.md
 1. Install dependencies:
 
    ```bash
-   pip install fastapi uvicorn jinja2 requests lxml python-dotenv
+   pip install fastapi uvicorn jinja2 requests lxml python-dotenv python-multipart
    ```
 
 2. Export environment variables:
