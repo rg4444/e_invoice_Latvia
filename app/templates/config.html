@@ -1,19 +1,55 @@
 {% extends "base.html" %}{% block content %}
 <h2>Configuration</h2>
 <form id="cfg">
-  <label>Endpoint <input name="endpoint" value="{{cfg.endpoint}}"></label>
-  <label>SOAPAction <input name="soap_action" value="{{cfg.soap_action}}"></label>
-  <label>Username <input name="username" value="{{cfg.username}}"></label>
-  <label>Password <input type="password" name="password" value="{{cfg.password}}"></label>
-  <label>Client cert (PEM) <input name="client_cert" value="{{cfg.client_cert}}"></label>
-  <label>Client key (PEM) <input name="client_key" value="{{cfg.client_key}}"></label>
-  <label>Client PKCS#12 <input name="client_p12" value="{{cfg.client_p12}}"></label>
-  <label>P12 password <input type="password" name="p12_password" value="{{cfg.p12_password}}"></label>
-  <label>CA bundle (optional) <input name="ca_bundle" value="{{cfg.ca_bundle}}"></label>
-  <label>Verify TLS <input type="checkbox" name="verify_tls" {% if cfg.verify_tls %}checked{% endif %}></label>
-  <label>XSD entry <input name="schema_path" value="{{cfg.schema_path}}"></label>
-  <label>Success indicator <input name="success_indicator" value="{{cfg.success_indicator}}"></label>
-  <button type="submit">Save</button>
+  <div class="mb-3">
+    <label for="endpoint" class="form-label">Endpoint</label>
+    <input id="endpoint" name="endpoint" value="{{cfg.endpoint}}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label for="soap_action" class="form-label">SOAPAction</label>
+    <input id="soap_action" name="soap_action" value="{{cfg.soap_action}}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label for="username" class="form-label">Username</label>
+    <input id="username" name="username" value="{{cfg.username}}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label for="password" class="form-label">Password</label>
+    <input id="password" type="password" name="password" value="{{cfg.password}}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label for="client_cert" class="form-label">Client cert (PEM)</label>
+    <input id="client_cert" name="client_cert" value="{{cfg.client_cert}}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label for="client_key" class="form-label">Client key (PEM)</label>
+    <input id="client_key" name="client_key" value="{{cfg.client_key}}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label for="client_p12" class="form-label">Client PKCS#12</label>
+    <input id="client_p12" name="client_p12" value="{{cfg.client_p12}}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label for="p12_password" class="form-label">P12 password</label>
+    <input id="p12_password" type="password" name="p12_password" value="{{cfg.p12_password}}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label for="ca_bundle" class="form-label">CA bundle (optional)</label>
+    <input id="ca_bundle" name="ca_bundle" value="{{cfg.ca_bundle}}" class="form-control">
+  </div>
+  <div class="form-check mb-3">
+    <input id="verify_tls" type="checkbox" name="verify_tls" class="form-check-input" {% if cfg.verify_tls %}checked{% endif %}>
+    <label for="verify_tls" class="form-check-label">Verify TLS</label>
+  </div>
+  <div class="mb-3">
+    <label for="schema_path" class="form-label">XSD entry</label>
+    <input id="schema_path" name="schema_path" value="{{cfg.schema_path}}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label for="success_indicator" class="form-label">Success indicator</label>
+    <input id="success_indicator" name="success_indicator" value="{{cfg.success_indicator}}" class="form-control">
+  </div>
+  <button type="submit" class="btn btn-primary">Save</button>
 </form>
 <script>
 document.getElementById('cfg').addEventListener('submit', async (e) => {
