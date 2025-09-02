@@ -31,10 +31,12 @@ from validation import validate_xsd
 from utils_attachments import read_file_b64, new_content_id
 from soap_client import send_invoice, send_raw_envelope
 from lxml import etree
+from schematron import run_schematron_xslt
 
 INVOICE_DIR = "/data/invoices"
 SAMPLES_DIR = "/data/samples"
 XSD_DIR = "/data/xsd"
+SCHEMATRON_DIR = "/data/schematron"
 
 os.makedirs(INVOICE_DIR, exist_ok=True)
 
@@ -84,6 +86,27 @@ def _list_xsd_entrypoints():
                     entries.append(os.path.join(root, f))
         entries = sorted(set(entries))
     return entries
+
+
+def _list_rulesets():
+    # pick xslt files under data/schematron**
+    xslt = []
+    for root, _, files in os.walk(SCHEMATRON_DIR):
+        for f in files:
+            if f.lower().endswith((".xsl", ".xslt")):
+                xslt.append(os.path.join(root, f))
+    return sorted(xslt)
+
+
+@app.get("/schematron/list")
+def schematron_list():
+    return JSONResponse({"ok": True, "rulesets": _list_rulesets()})
+
+
+@app.post("/schematron/validate")
+def schematron_validate(invoice_xml: str = Form(...), ruleset_path: str = Form(...)):
+    ok, svrl, issues = run_schematron_xslt(invoice_xml, ruleset_path)
+    return JSONResponse({"ok": ok, "issues": issues, "svrl": svrl})
 
 
 def _log_div_call(operation: str, req_xml: str, resp_xml: str, took_ms: int, cfg: dict):
