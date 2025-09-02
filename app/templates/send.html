@@ -1,16 +1,34 @@
 {% extends "base.html" %}{% block content %}
 <h2>Send & Debug</h2>
-<p>Endpoint: <code>{{ cfg.endpoint }}</code></p>
+<div class="mb-3">
+  <label>SOAPAction
+    <input id="soap_action" class="form-control" value="{{ cfg.soap_action }}">
+  </label>
+</div>
+<div class="mb-3">
+  <textarea id="body_xml" rows="18" class="form-control">{{ xml }}</textarea>
+</div>
 <button id="send" class="btn btn-primary mb-3">Validate & Send</button>
 <pre id="dbg" class="mt-3"></pre>
 <script>
+document.addEventListener('DOMContentLoaded', ()=>{
+  const stored = localStorage.getItem('send_body_template');
+  if (stored) {
+    const ta = document.getElementById('body_xml');
+    if (ta && !ta.value.trim()) {
+      ta.value = stored;
+    }
+    localStorage.removeItem('send_body_template');
+  }
+});
+
 const cfg = {{ cfg | tojson | safe }};
 
 document.getElementById('send').addEventListener('click', async ()=>{
-  // Optional: call /validate first and block on failure
+  const body = document.getElementById('body_xml').value;
+  await fetch('/invoice/set', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({xml: body})});
   const v = await fetch('/validate', { method:'POST' }).then(r=>r.json());
   if (!v.ok) { alert("XSD validation failed — see Schema tab"); return; }
-
   const res = await fetch('/send', { method:'POST' });
   const json = await res.json();
   const d = json.debug;

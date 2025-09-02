@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>WSDL Browser</h2>
+<p>Inspect services, ports, and operations from the endpoint WSDL and insert an operation into the Send page.</p>
+
+<div class="grid">
+  <label>Endpoint (service URL)
+    <input id="wb_url" value="{{cfg.endpoint}}">
+  </label>
+  <label><input type="checkbox" id="wb_prefer" checked> Prefer ?wsdl (recommended)</label>
+</div>
+<div>
+  <button id="wb_load">Load & List Operations</button>
+  <input id="wb_filter" placeholder="Filter operations by name...">
+</div>
+
+<pre id="wb_msg"></pre>
+<div id="wb_list"></div>
+
+<script>
+const listDiv = document.getElementById('wb_list');
+const msg = document.getElementById('wb_msg');
+let ops = [];
+
+function renderList(){
+  const q = (document.getElementById('wb_filter').value || '').toLowerCase();
+  const filtered = ops.filter(o => (
+    o.operation.toLowerCase().includes(q) ||
+    o.service.toLowerCase().includes(q) ||
+    o.port.toLowerCase().includes(q)
+  ));
+  if (!filtered.length) { listDiv.innerHTML = '<p>No operations.</p>'; return; }
+  listDiv.innerHTML = filtered.map(o => `
+    <div class="card">
+      <div><b>${o.service}</b> / <code>${o.port}</code></div>
+      <div>Operation: <code>${o.operation}</code></div>
+      <div>SOAPAction: <code>${o.soap_action || '(none)'}</code></div>
+      <div>Signature: <code>${o.input_signature}</code></div>
+      <button data-svc="${o.service}" data-port="${o.port}" data-op="${o.operation}" class="wb_use">Use in Send</button>
+    </div>
+  `).join('');
+  document.querySelectorAll('.wb_use').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const fd = new FormData();
+      fd.append('service', btn.dataset.svc);
+      fd.append('port', btn.dataset.port);
+      fd.append('operation', btn.dataset.op);
+      fd.append('url', document.getElementById('wb_url').value);
+      fd.append('prefer_multi', document.getElementById('wb_prefer').checked ? 'true':'false');
+      fd.append('apply_to_config', 'true');
+      const res = await fetch('/wsdl/op-template', { method:'POST', body: fd });
+      const js = await res.json();
+      if (!js.ok) { msg.textContent = JSON.stringify(js, null, 2); return; }
+      localStorage.setItem('send_body_template', js.body_template || '');
+      window.location.href = '/send';
+    });
+  });
+}
+
+document.getElementById('wb_load').addEventListener('click', async ()=>{
+  const url = document.getElementById('wb_url').value;
+  const prefer = document.getElementById('wb_prefer').checked ? 'true' : 'false';
+  const fd = new FormData();
+  fd.append('url', url);
+  fd.append('prefer_multi', prefer);
+  const res = await fetch('/wsdl/inspect', { method: 'POST', body: fd });
+  const js = await res.json();
+  msg.textContent = JSON.stringify(js, null, 2);
+  ops = js.operations || [];
+  renderList();
+});
+
+document.getElementById('wb_filter').addEventListener('input', renderList);
+</script>
+
+<style>
+.card{border:1px solid #ddd;padding:12px;margin:8px 0;border-radius:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+</style>
+{% endblock %}
