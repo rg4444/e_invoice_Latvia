@@ -19,6 +19,8 @@ DEFAULTS = {
     "ca_bundle": "/data/certs/chain.pem",
     "schema_path": os.getenv("DEFAULT_SCHEMA", "/data/xsd/UBL-Invoice-2.1.xsd"),
     "success_indicator": "Success",
+    "last_message_id": "",
+    "last_content_id": "",
 }
 
 def load_config():
