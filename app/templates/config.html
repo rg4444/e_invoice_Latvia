@@ -1,5 +1,47 @@
 {% extends "base.html" %}{% block content %}
 <h2>Configuration</h2>
+<h3>Find & Convert (OpenSSL)</h3>
+<p>Choose a directory under <code>/data</code> that contains your certificate files.
+I will look for: <code>.key</code> (private key), <code>.cer</code>/<code>.pem</code> (client cert), and <code>.p7b</code>/<code>.p7c</code> (chain).</p>
+<p><strong>Security:</strong> This tool reads and writes private keys inside <code>/data</code>. Keep that directory local &amp; protected. We don't change key passwords; if your key is encrypted, OpenSSL may prompt for passphrases. The TLS probe uses <code>curl -v</code>; redact logs before sharing.</p>
+
+<form id="finder">
+  <label>Search directory (inside /data):
+    <input name="dir" value="/data/certs">
+  </label>
+  <label>Output directory:
+    <input name="out" value="/data/certs">
+  </label>
+  <label>Create PKCS#12 (.p12)
+    <input type="checkbox" name="mkp12" checked>
+  </label>
+  <label>PKCS#12 password (optional)
+    <input type="password" name="p12pass" value="">
+  </label>
+  <div>
+    <button type="submit">Find and convert</button>
+    <button id="verify" type="button">Verify chain &amp; TLS probe</button>
+  </div>
+</form>
+<pre id="finder_out"></pre>
+
+<script>
+document.getElementById('finder').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch('/tools/find-convert', { method:'POST', body: fd });
+  const js = await res.json();
+  document.getElementById('finder_out').textContent = JSON.stringify(js, null, 2);
+  if (js.config_applied) alert('Converted and applied to config.');
+});
+
+document.getElementById('verify').addEventListener('click', async ()=>{
+  const res = await fetch('/tools/verify', { method:'POST' });
+  const js = await res.json();
+  document.getElementById('finder_out').textContent = JSON.stringify(js, null, 2);
+});
+</script>
+<hr>
 <form id="cfg">
   <div class="mb-3">
     <label for="endpoint" class="form-label">Endpoint</label>

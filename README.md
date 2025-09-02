@@ -135,8 +135,25 @@ README.md
   openssl pkcs12 -in client.p12 -nocerts -nodes -out client.key
   ```
 
-- **Custom CA bundles**:  
+- **Custom CA bundles**:
   If the endpoint uses a private CA, place it under `data/trust/ca.pem` and set the path in Config.
+
+## Find & Convert (OpenSSL)
+
+The Config screen now offers a **Find & Convert** panel. It scans a directory under `/data` for a private key (`*.key`), client certificate (`*.cer`/`*.crt`/`*.pem`), and chain file (`*.p7b`/`*.p7c`). The tool assembles `client.pem`, `chain.pem`, `client_full.pem`, and optionally `client.p12`, then applies these paths to the configuration.
+
+**Security notes**
+
+- Reads and writes private keys inside `/data`; keep this directory local and protected.
+- Key passwords are untouched. If your key is encrypted, OpenSSL may prompt for its passphrase.
+- The TLS probe uses `curl -v` and prints the handshake log. Redact sensitive data before sharing.
+
+**Typical flow**
+
+1. Place raw files in `/data/certs` (`client.key`, `client.cer`, `chain.p7b`).
+2. Open **Config → Find & Convert**.
+3. Adjust directories if needed and run **Find and convert** (enable PKCS#12 to create `client.p12`).
+4. Run **Verify chain & TLS probe** to check the assembled certificates.
 
 ---
 

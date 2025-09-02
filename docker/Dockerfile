@@ -1,5 +1,9 @@
 FROM python:3.12-slim
 WORKDIR /app
+# OS tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
 COPY app /app
 RUN pip install --no-cache-dir fastapi uvicorn[standard] jinja2 requests lxml python-dotenv python-multipart
 EXPOSE 9595
