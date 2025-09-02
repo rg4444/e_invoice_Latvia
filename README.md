@@ -30,6 +30,9 @@ It helps integrators, developers, and support teams validate invoice XMLs, test 
   - Builds WS-Security UsernameToken (digest)
   - Optional mutual TLS with PEM keypair
   - PKCS#12 supported via manual conversion to PEM/KEY
+- **WSDL browser**:
+  - Fetches available SOAP operations after authentication
+  - Clicking an operation fills SOAPAction and seeds the invoice body
 
 - **Debug panel**:
   - Shows raw SOAP request & response
@@ -157,10 +160,19 @@ The Config screen now offers a **Find & Convert** panel. It scans a directory un
 
 ---
 
+## WSDL Browser
+
+After entering the endpoint and authentication details, press **Load WSDL** on the Config tab to retrieve the service description.
+The app lists available operations; clicking one stores the corresponding `SOAPAction` and seeds a minimal request body. If the
+WSDL cannot be fetched or contains no operations, an error message is shown.
+
+---
+
 ## Usage Workflow
 
-1. **Open Config tab**  
-   - Enter endpoint, SOAPAction, credentials, and cert paths  
+1. **Open Config tab**
+   - Enter endpoint, credentials, and cert paths
+   - Use **Load WSDL** to list available operations; selecting one fills `SOAPAction` and seeds a minimal request body
    - Save configuration
 
 2. **Load Invoice**  
