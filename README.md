@@ -1,52 +1,46 @@
 # e-Rēķini Tester
 
-A minimal FastAPI web application to edit, validate, and send e-invoices via SOAP with WS-Security UsernameToken support.
+A minimal **FastAPI** web application to **edit**, **validate**, and **send** e-invoices via **SOAP** with **WS-Security UsernameToken (digest)** and optional **mutual TLS**.
+
+This tool is intended as a **local integration tester** for the Latvian VDAA *e-Rēķini* system.  
+It helps integrators, developers, and support teams validate invoice XMLs, test SOAP connectivity, and debug certificate/TLS issues before wiring production systems.
+
+---
 
 ## Features
 
-- Configuration UI for endpoint, SOAPAction, credentials, TLS settings and paths.
-- Invoice editor to load, edit, and save XML invoices.
-- XSD validation using `lxml`.
-- SOAP client with WS-Security UsernameToken digest and optional mutual TLS.
-- Debug panel showing request/response data and timings.
-- Config and logs persisted under `/data` for easy volume mounting.
+- **Configuration UI** for:
+  - Endpoint
+  - SOAPAction
+  - Username/Password
+  - TLS settings
+  - Client certificate paths
+  - XSD entry path
+  - Success indicator (substring check in response)
 
-## Repository layout
+- **Invoice editor**:
+  - Load, edit, and save XML invoices
+  - Preloaded with sample invoice XML
 
-```
-app/                # FastAPI application
-  main.py
-  soap_client.py
-  validation.py
-  storage.py
-  templates/
-  static/
-data/
-  samples/         # sample invoice XMLs
-  xsd/             # place UBL XSD tree here
-  certs/           # client certificates
-  trust/           # custom CA bundle
-  logs/            # saved request/response logs
- docker/
-  Dockerfile
- docker-compose.yml
- .env.example
-```
+- **Schema validation**:
+  - XSD validation with `lxml`
+  - Supports UBL 2.1 tree and LV profile schemas
 
-## Running with Docker
+- **SOAP client**:
+  - Builds WS-Security UsernameToken (digest)
+  - Optional mutual TLS with PEM keypair
+  - PKCS#12 supported via manual conversion to PEM/KEY
 
-```bash
-cp .env.example .env
-docker compose up --build
-# open http://localhost:9595
-```
+- **Debug panel**:
+  - Shows raw SOAP request & response
+  - HTTP headers and status
+  - TLS info and timings
+  - Saves last request/response to `/data/logs/`
 
-## Bare metal
+- **Persistence**:
+  - Config and logs persisted under `/data` for easy Docker volume mounting
 
-```bash
-export DEFAULT_INVOICE=/path/to/data/samples/einvoice_nePVN2.xml
-export DEFAULT_SCHEMA=/path/to/data/xsd/UBL-Invoice-2.1.xsd
-uvicorn app.main:app --reload --port 9595
-```
+---
 
-Ensure the UBL XSD tree is placed under `data/xsd/` so relative imports resolve. If using PKCS#12 certificates, convert them to PEM/KEY with OpenSSL before use.
+## Repository Layout
+
