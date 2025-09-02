@@ -10,7 +10,8 @@ from requests import Session
 import requests
 
 from storage import load_config, save_config
-from wsdl_utils import build_session_with_sslcontext, http_get, try_parse_wsdl, curl_fetch_wsdl
+from wsdl_utils import http_get, try_parse_wsdl, curl_fetch_wsdl
+from wsdl_body import build_body_template
 from tools import (
     scan_for_materials,
     convert_cer_to_pem,
@@ -58,13 +59,12 @@ def render(tpl, **ctx):
 
 
 def _wsdl_session(cfg):
-    # System CA trust + mTLS
-    return build_session_with_sslcontext(
-        cfg.get("endpoint", ""),
-        cfg.get("client_cert", ""),
-        cfg.get("client_key", ""),
-        cfg.get("client_key_pass", ""),
-    )
+    s = Session()
+    cert = (cfg.get("client_cert"), cfg.get("client_key"))
+    if all(cert):
+        s.cert = cert
+    s.verify = True  # use system CA store
+    return s
 
 
 @app.get("/cert", response_class=HTMLResponse)
@@ -311,6 +311,11 @@ async def invoice_set(request: Request):
     return JSONResponse({"status":"ok", "len": len(INVOICE_XML)})
 
 
+@app.get("/wsdlui", response_class=HTMLResponse)
+def wsdl_ui():
+    return env.get_template("wsdlui.html").render(cfg=load_config())
+
+
 @app.post("/wsdl/load")
 def wsdl_load(url: str = Form(""), prefer_multi: bool = Form(True)):
     """
@@ -423,6 +428,104 @@ def wsdl_debug(url: str = Form(""), try_both: bool = Form(True), use_curl_fallba
 
     return JSONResponse({"ok": any(r.get("ok") for r in results), "results": results, "suggestions": suggestions})
 
+
+@app.post("/wsdl/inspect")
+def wsdl_inspect(url: str = Form(""), prefer_multi: bool = Form(True)):
+    cfg = load_config()
+    base = (url or cfg.get("endpoint") or "").strip()
+    if not base:
+        return JSONResponse({"ok": False, "error": "Endpoint not set"}, status_code=400)
+
+    variants = ["?wsdl", "?singleWsdl"] if prefer_multi else ["?singleWsdl", "?wsdl"]
+
+    s = _wsdl_session(cfg)
+    transport = Transport(session=s, timeout=45)
+    settings = Settings(strict=False, xml_huge_tree=True)
+
+    errors = []
+    for suffix in variants:
+        wsdl_url = base + suffix
+        try:
+            cl = Client(wsdl=wsdl_url, transport=transport, settings=settings)
+            ops = []
+            for svc in cl.wsdl.services.values():
+                for port in svc.ports.values():
+                    for op in port.binding._operations.values():
+                        ops.append({
+                            "service": str(svc.name),
+                            "port": str(port.name),
+                            "operation": str(op.name),
+                            "soap_action": op.soapaction,
+                            "input_signature": op.input.signature(cl.wsdl.types),
+                            "ns": port.binding.wsdl.port_type._name.namespace,
+                        })
+            return JSONResponse({"ok": True, "url": wsdl_url, "count": len(ops), "operations": ops})
+        except NotImplementedError as e:
+            errors.append({"url": wsdl_url, "stage": "wsdl-parse", "error": str(e)})
+        except requests.exceptions.SSLError as e:
+            errors.append({"url": wsdl_url, "stage": "tls-verify", "error": str(e)})
+        except Exception as e:
+            errors.append({"url": wsdl_url, "stage": "zeep-init", "error": str(e)})
+
+    return JSONResponse({"ok": False, "tried": variants, "errors": errors}, status_code=502)
+
+
+@app.post("/wsdl/op-template")
+def wsdl_op_template(
+    service: str = Form(...),
+    port: str = Form(...),
+    operation: str = Form(...),
+    url: str = Form(""),
+    prefer_multi: bool = Form(True),
+    apply_to_config: bool = Form(True),
+):
+    cfg = load_config()
+    base = (url or cfg.get("endpoint") or "").strip()
+    if not base:
+        return JSONResponse({"ok": False, "error": "Endpoint not set"}, status_code=400)
+
+    variants = ["?wsdl", "?singleWsdl"] if prefer_multi else ["?singleWsdl", "?wsdl"]
+
+    s = _wsdl_session(cfg)
+    transport = Transport(session=s, timeout=45)
+    settings = Settings(strict=False, xml_huge_tree=True)
+
+    errors = []
+    for suffix in variants:
+        wsdl_url = base + suffix
+        try:
+            cl = Client(wsdl=wsdl_url, transport=transport, settings=settings)
+            op = cl.wsdl.services[service].ports[port].binding._operations[operation]
+            action = op.soapaction or ""
+
+            body_xml = build_body_template(cl, service, port, operation)
+
+            if apply_to_config:
+                cfg["soap_action"] = action
+                cfg["soap_version"] = cfg.get("soap_version") or "1.2"
+                save_config(cfg)
+
+            v = (cfg.get("soap_version") or "1.2").strip()
+            if v == "1.1":
+                env_ns = "http://schemas.xmlsoap.org/soap/envelope/"
+            else:
+                env_ns = "http://www.w3.org/2003/05/soap-envelope"
+
+            envelope = f'''<soap:Envelope xmlns:soap="{env_ns}">
+  <soap:Header>
+    <!-- Optional: WS-Addressing/WS-Security if required -->
+  </soap:Header>
+  <soap:Body>
+{body_xml}
+  </soap:Body>
+</soap:Envelope>'''
+
+            return JSONResponse({"ok": True, "soap_action": action, "soap_version": v, "body_template": envelope})
+        except Exception as e:
+            errors.append({"url": wsdl_url, "error": str(e)})
+
+    return JSONResponse({"ok": False, "errors": errors}, status_code=502)
+
 @app.get("/schema", response_class=HTMLResponse)
 def schema_page():
     cfg = load_config()
@@ -437,7 +540,7 @@ def validate_route():
 @app.get("/send", response_class=HTMLResponse)
 def send_page():
     cfg = load_config()
-    return render("send.html", cfg=cfg)
+    return render("send.html", cfg=cfg, xml=INVOICE_XML)
 
 @app.post("/send")
 def send_route():

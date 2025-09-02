@@ -190,11 +190,20 @@ The Config screen now offers a **Find & Convert** panel. It scans a directory un
 
 ---
 
-## WSDL Browser
+### WSDL Browser
 
-After entering the endpoint and authentication details, press **Load WSDL** on the Config tab to retrieve the service description.
-The app lists available operations; clicking one stores the corresponding `SOAPAction` and seeds a minimal request body. If the
-WSDL cannot be fetched or contains no operations, an error message is shown.
+Use **WSDL Browser** to discover operations and auto-fill the Send page.
+
+1. Open **WSDL Browser** tab.
+2. Click **Load & List Operations** (uses `?wsdl` first; falls back to `?singleWsdl`).
+3. Filter or scroll the list; click **Use in Send** on an operation.
+   - This sets **SOAPAction** in Config and prepares a **SOAP 1.2** envelope with a minimal body template.
+   - You are taken to **Send**, where the request body is prefilled. Replace `<value>` placeholders with actual data.
+4. If there are issues, the **Config → WSDL → Debug WSDL** panel can diagnose TLS/URL/format problems.
+
+> Notes:
+> - For WSDL fetching, the app uses the **system CA** (public trust) and still presents your **client cert/key** for mTLS.
+> - Do **not** point the CA bundle to your **client chain** when loading WSDL (see “Known Issue”).
 
 ---
 
