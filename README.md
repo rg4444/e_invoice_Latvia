@@ -288,3 +288,109 @@ Common hints:
 When WSDL loads, you can inspect it under `/data/wsdl/` or import into SoapUI to discover operations/actions.
 
 ---
+
+## WSDL Service Discovery
+
+The app now includes a full WSDL discovery workflow so integrators can inspect services/ports/operations, generate request body templates, and auto-fill the Send page with the correct SOAPAction and a SOAP 1.2 envelope.
+
+### What's included
+
+**Config → WSDL**
+
+- **Load WSDL**: fetches and validates the contract (prefers `?wsdl`).
+- **Debug WSDL**: diagnostic run (tries `?wsdl` and `?singleWsdl`, shows HTTP status/headers/preview, mTLS on system CA trust).
+
+**WSDL Browser tab**
+
+Lists Service → Port → Operation with:
+
+- Operation name
+- SOAPAction
+- Namespace (derived from the operation input type)
+- Human-readable input signature
+- **Use in Send**: writes SOAPAction to Config, defaults SOAP 1.2, and pre-fills the Send editor with a minimal body template.
+
+Saved WSDLs and temp artifacts are under `/data/wsdl/`.
+
+### How to use
+
+1. Verify TLS in Config (your client cert/key are required).
+2. In **Config → WSDL**, press **Load WSDL**.  
+   You should see `{ "ok": true, "note": "Loaded via ?wsdl" }`.
+3. Open the **WSDL Browser** tab:
+   - Enter/confirm the Service URL (the base `.svc` URL).
+   - Click **Load & List Operations**.
+   - Filter or scroll, then click **Use in Send** on the operation you need (e.g., `SendMessage`).
+4. You'll be taken to **Send**:
+   - SOAP version is **1.2** by default (adjust if needed).
+   - WS-Addressing is recommended for WCF services.
+   - The body editor is pre-filled with a minimal XML template; replace `<value>` placeholders with real data.
+5. Send the request. For messaging flows, capture `MessageId` from the response, then call `GetMessageServerConfirmation` to verify server acceptance.
+
+### Common DIV operations (examples)
+
+| Operation                | Purpose                                      | Typical Inputs (simplified)                                  |
+|--------------------------|----------------------------------------------|--------------------------------------------------------------|
+| `SendMessage`            | Single-shot send (envelope + optional attachment) | `Envelope`, `AttachmentsInput[]`                             |
+| `InitSendMessage`        | Start chunked send                           | `MessageClientId`, `SenderEAddress`, `AttachmentsInput[]`    |
+| `SendAttachmentSection`  | Upload chunk                                 | `MessageId`, `ContentId`, `SectionIndex`, `Contents(base64)` |
+| `CompleteSendMessage`    | Finish chunked send                          | `MessageId`, `Envelope`                                      |
+| `GetMessageServerConfirmation` | Check server acceptance                | `MessageId`                                                  |
+| `ConfirmMessage`         | Confirm receipt                              | `RecipientConfirmationPart`, `MessageId`                     |
+| `GetMessage`             | Fetch a message                              | `MessageId`                                                  |
+| `GetAttachmentSection`   | Fetch attachment chunk                       | `MessageId`, `ContentId`, `SectionIndex`                     |
+
+The WSDL Browser shows the precise SOAPAction and the operation’s input signature pulled directly from the service.
+
+### Example (SOAP 1.2 + WS-Addressing)
+
+The **Use in Send** button generates a skeleton similar to this (you only fill in values):
+
+```xml
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+               xmlns:wsa="http://www.w3.org/2005/08/addressing">
+  <soap:Header>
+    <wsa:Action>http://vraa.gov.lv/div/uui/2011/11/UnifiedServiceInterface/SendMessage</wsa:Action>
+    <wsa:To>https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterface/UnifiedService.svc</wsa:To>
+    <wsa:MessageID>urn:uuid:REPLACEME</wsa:MessageID>
+  </soap:Header>
+  <soap:Body>
+    <!-- Operation body generated from WSDL; replace <value> placeholders -->
+    <!-- Example structure (actual elements may differ per schema): -->
+    <tns:SendMessage xmlns:tns="http://vraa.gov.lv/xmlschemas/div/uui/2011/11">
+      <tns:Envelope>…</tns:Envelope>
+      <tns:AttachmentsInput>
+        <AttachmentInput>
+          <ContentId>REPLACEME</ContentId>
+          <FileName>invoice.xml</FileName>
+          <MimeType>application/xml</MimeType>
+          <Contents>BASE64…</Contents>
+        </AttachmentInput>
+      </tns:AttachmentsInput>
+    </tns:SendMessage>
+  </soap:Body>
+</soap:Envelope>
+```
+
+The sender automatically uses `Content-Type: application/soap+xml; action="…"` for SOAP 1.2.
+
+### Troubleshooting WSDL
+
+Use **Debug WSDL** in **Config → WSDL** if listing operations fails:
+
+- Tries `?wsdl` and `?singleWsdl`.
+- Shows HTTP status/headers/body preview, parse notes, and suggestions.
+- **WCF quirk:** `?singleWsdl` may include `<xs:include/>` without `schemaLocation`, which some parsers reject. Prefer `?wsdl`.
+- **Trust store note:** For WSDL fetching the app uses the system CA store with mTLS.  
+  Do not point the CA bundle to your client chain file; that can cause:
+
+```
+CERTIFICATE_VERIFY_FAILED: self-signed certificate in certificate chain
+```
+
+---
+
+## License
+
+This project is licensed for non-commercial use only. Commercial use requires a separate license. See [LICENSE](LICENSE).
+

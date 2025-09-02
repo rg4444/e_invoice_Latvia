@@ -1,0 +1,52 @@
+ e-Rēķini Tester — Non-Commercial License (NC-1.0)
+ Copyright (c) 2025 Rihards (rg4444) and contributors
+ 
+ Permission is hereby granted, free of charge, to any person obtaining a copy of
+ this software and associated documentation files (the “Software”), to use,
+ copy, modify, and distribute the Software for NON-COMMERCIAL purposes only,
+ subject to the following conditions:
+ 
+ 1) Definition — “Commercial Use”
+    “Commercial Use” means any use or distribution:
+    (a) for which you receive, or intend to receive, monetary compensation or
+        commercial advantage (including as part of a paid product or service,
+        SaaS/hosted services, consulting, or integration delivered to clients),
+        or
+    (b) by or on behalf of a for-profit entity in production or client projects.
+ 
+    Non-commercial uses include internal evaluation, testing, research,
+    education, and demonstrations that do not generate revenue and are not
+    delivered to paying customers.
+ 
+ 2) Conditions for Non-Commercial Use
+    (a) You must retain this license text and the copyright notice in all copies
+        or substantial portions of the Software and any derivative works.
+    (b) If you modify the Software, you must clearly mark your changes and the
+        date of change.
+    (c) You may not use the names, logos, or trademarks of the authors or
+        contributors to endorse or promote your work without prior written
+        permission.
+    (d) Third-party components included with the Software remain subject to their
+        own licenses.
+ 
+ 3) No Commercial Use without Consent
+    Any Commercial Use of the Software requires a separate, written commercial
+    license from the copyright holder. To inquire about a commercial license,
+    please open an issue in the repository or contact the owner directly.
+ 
+ 4) No Warranty
+    THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+ 
+ 5) Termination
+    Any breach of this license automatically terminates your rights under it.
+    Upon termination, you must cease use and distribution of the Software and
+    destroy any copies in your possession. Rights may be reinstated only with
+    the written permission of the copyright holder.
+ 
+ END OF TERMS
