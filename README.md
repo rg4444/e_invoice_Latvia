@@ -77,6 +77,16 @@ README.md
 
 2. Build and run the container:
 
+   The compose file uses the project root as the build context and points to `docker/Dockerfile`:
+
+   ```yaml
+   build:
+     context: .
+     dockerfile: docker/Dockerfile
+   ```
+
+   Run the container:
+
    ```bash
    docker compose up --build
    ```

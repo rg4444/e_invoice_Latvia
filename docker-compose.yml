@@ -1,6 +1,8 @@
 services:
   erekini:
-    build: ./docker
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     ports:
       - "9595:9595"
     volumes:
