@@ -14,6 +14,8 @@ from tools import (
     make_p12,
     verify_chain,
     tls_probe,
+    diagnose,
+    auto_fix,
 )
 from validation import validate_xsd
 from soap_client import send_invoice
@@ -36,7 +38,7 @@ env = Environment(
 
 # In-memory invoice editor state
 INVOICE_XML = ""
-DEFAULT_INVOICE = os.getenv("DEFAULT_INVOICE", "")
+DEFAULT_INVOICE = os.getenv("DEFAULT_INVOICE", "/data/samples/einvoice_nePVN2.xml")
 
 @app.on_event("startup")
 def load_defaults():
@@ -57,9 +59,10 @@ def save_config_route(
     endpoint: str = Form(""), soap_action: str = Form(""),
     username: str = Form(""), password: str = Form(""),
     client_cert: str = Form(""), client_key: str = Form(""),
+    client_key_pass: str = Form(""),
     client_p12: str = Form(""), p12_password: str = Form(""),
     verify_tls: bool = Form(False), ca_bundle: str = Form(""),
-    schema_path: str = Form(""), success_indicator: str = Form("Valid")
+    schema_path: str = Form(""), success_indicator: str = Form("Success")
 ):
     cfg = load_config()
     cfg.update({
@@ -69,6 +72,7 @@ def save_config_route(
         "password": password,
         "client_cert": client_cert.strip(),
         "client_key": client_key.strip(),
+        "client_key_pass": client_key_pass,
         "client_p12": client_p12.strip(),
         "p12_password": p12_password,
         "verify_tls": verify_tls,
@@ -78,6 +82,18 @@ def save_config_route(
     })
     save_config(cfg)
     return JSONResponse({"status": "ok"})
+
+
+@app.post("/tools/diagnose")
+async def tools_diagnose(allow_decrypt: bool = Form(False)):
+    report = diagnose(allow_decrypt=allow_decrypt)
+    return JSONResponse(report)
+
+
+@app.post("/tools/auto-fix")
+async def tools_auto_fix():
+    res = auto_fix()
+    return JSONResponse(res)
 
 @app.post("/tools/find-convert")
 async def find_convert(

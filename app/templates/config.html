@@ -42,6 +42,35 @@ document.getElementById('verify').addEventListener('click', async ()=>{
 });
 </script>
 <hr>
+<h3>Certificate Diagnostics</h3>
+<p>This will inspect your certs/keys, verify the chain, and test TLS handshake to the endpoint.</p>
+
+<form id="diag">
+  <label>Allow creating a decrypted test key (client.key.decrypted.pem)?
+    <input type="checkbox" name="allow_decrypt" />
+  </label>
+  <button type="submit">Run Diagnostics</button>
+  <button id="fix" type="button">One-click Fix</button>
+</form>
+<pre id="diag_out"></pre>
+
+<script>
+document.getElementById('diag').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch('/tools/diagnose', { method:'POST', body: fd });
+  const js = await res.json();
+  document.getElementById('diag_out').textContent = JSON.stringify(js, null, 2);
+  if (js.apply_suggestion) alert('Auto-suggestion available. Click One-click Fix.');
+});
+
+document.getElementById('fix').addEventListener('click', async ()=>{
+  const res = await fetch('/tools/auto-fix', { method:'POST' });
+  const js = await res.json();
+  document.getElementById('diag_out').textContent = JSON.stringify(js, null, 2);
+});
+</script>
+<hr>
 <form id="cfg">
   <div class="mb-3">
     <label for="endpoint" class="form-label">Endpoint</label>
@@ -66,6 +95,10 @@ document.getElementById('verify').addEventListener('click', async ()=>{
   <div class="mb-3">
     <label for="client_key" class="form-label">Client key (PEM)</label>
     <input id="client_key" name="client_key" value="{{cfg.client_key}}" class="form-control">
+  </div>
+  <div class="mb-3">
+    <label for="client_key_pass" class="form-label">Key passphrase (optional)</label>
+    <input id="client_key_pass" type="password" name="client_key_pass" value="{{cfg.client_key_pass}}" class="form-control">
   </div>
   <div class="mb-3">
     <label for="client_p12" class="form-label">Client PKCS#12</label>
