@@ -1,0 +1,37 @@
+{% extends "base.html" %}{% block content %}
+<h2>Send & Debug</h2>
+<p>Endpoint: <code>{{ cfg.endpoint }}</code></p>
+<button id="send">Validate & Send</button>
+<pre id="dbg"></pre>
+<script>
+document.getElementById('send').addEventListener('click', async ()=>{
+  // Optional: call /validate first and block on failure
+  const v = await fetch('/validate', { method:'POST' }).then(r=>r.json());
+  if (!v.ok) { alert("XSD validation failed — see Schema tab"); return; }
+
+  const res = await fetch('/send', { method:'POST' });
+  const json = await res.json();
+  const d = json.debug;
+  const ok = json.ok ? "✔" : "✖";
+  const txt = [
+    `${ok} HTTP ${d.response.status} in ${d.timing_ms} ms`,
+    "",
+    "== Request ==",
+    `URL: ${d.request.url}`,
+    "Headers:",
+    JSON.stringify(d.request.headers, null, 2),
+    "",
+    "Body:",
+    d.request.body,
+    "",
+    "== Response ==",
+    "Headers:",
+    JSON.stringify(d.response.headers, null, 2),
+    "",
+    "Body:",
+    d.response.body
+  ].join("\n");
+  document.getElementById('dbg').textContent = txt;
+});
+</script>
+{% endblock %}
