@@ -81,6 +81,25 @@ document.getElementById('fix').addEventListener('click', async ()=>{
     <input id="soap_action" name="soap_action" value="{{cfg.soap_action}}" class="form-control">
   </div>
   <div class="mb-3">
+    <label for="soap_version" class="form-label">SOAP Version</label>
+    <select id="soap_version" name="soap_version" class="form-select">
+      <option value="1.1" {% if cfg.soap_version == "1.1" %}selected{% endif %}>1.1</option>
+      <option value="1.2" {% if cfg.soap_version != "1.1" %}selected{% endif %}>1.2</option>
+    </select>
+  </div>
+  <div class="form-check mb-3">
+    <input id="use_ws_addressing" type="checkbox" name="use_ws_addressing" class="form-check-input" {% if cfg.use_ws_addressing %}checked{% endif %}>
+    <label for="use_ws_addressing" class="form-check-label">Use WS-Addressing</label>
+  </div>
+  <div class="mb-3">
+    <label for="wsse_mode" class="form-label">WS-Security</label>
+    <select id="wsse_mode" name="wsse_mode" class="form-select">
+      <option value="none" {% if cfg.wsse_mode == "none" %}selected{% endif %}>None</option>
+      <option value="username" {% if cfg.wsse_mode == "username" %}selected{% endif %}>UsernameToken</option>
+      <option value="x509" {% if cfg.wsse_mode == "x509" %}selected{% endif %}>X.509</option>
+    </select>
+  </div>
+  <div class="mb-3">
     <label for="username" class="form-label">Username</label>
     <input id="username" name="username" value="{{cfg.username}}" class="form-control">
   </div>

@@ -5,6 +5,9 @@ CONFIG_PATH = "/data/config.json"
 DEFAULTS = {
     "endpoint": "https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterface/UnifiedService.svc",
     "soap_action": "",
+    "soap_version": "1.2",
+    "use_ws_addressing": True,
+    "wsse_mode": "username",
     "username": "",
     "password": "",
     "client_cert": "/data/certs/client_full.pem",
