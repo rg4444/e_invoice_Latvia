@@ -4,13 +4,16 @@
 <h3>WSDL</h3>
 <div class="grid">
   <label>Service URL (endpoint)
-    <input id="wsdl_url" value="{{cfg.endpoint}}">
+    <input id="wsdl_url" value="{{cfg.endpoint}}" class="form-control">
   </label>
-  <label><input type="checkbox" id="prefer_multi" checked> Prefer ?wsdl (recommended)</label>
+  <label class="form-check">
+    <input type="checkbox" id="prefer_multi" class="form-check-input" checked>
+    <span class="form-check-label">Prefer ?wsdl (recommended)</span>
+  </label>
 </div>
-<div>
-  <button id="wsdl_load">Load WSDL</button>
-  <button id="wsdl_debug">Debug WSDL</button>
+<div class="mb-3">
+  <button id="wsdl_load" class="btn btn-primary me-2">Load WSDL</button>
+  <button id="wsdl_debug" class="btn btn-secondary">Debug WSDL</button>
 </div>
 <pre id="wsdl_out"></pre>
 <div id="wsdl_suggest"></div>
@@ -49,20 +52,20 @@ I will look for: <code>.key</code> (private key), <code>.cer</code>/<code>.pem</
 
 <form id="finder">
   <label>Search directory (inside /data):
-    <input name="dir" value="/data/certs">
+    <input name="dir" value="/data/certs" class="form-control">
   </label>
   <label>Output directory:
-    <input name="out" value="/data/certs">
+    <input name="out" value="/data/certs" class="form-control">
   </label>
-  <label>Create PKCS#12 (.p12)
-    <input type="checkbox" name="mkp12" checked>
+  <label class="form-check mt-2">Create PKCS#12 (.p12)
+    <input type="checkbox" name="mkp12" class="form-check-input" checked>
   </label>
   <label>PKCS#12 password (optional)
-    <input type="password" name="p12pass" value="">
+    <input type="password" name="p12pass" value="" class="form-control">
   </label>
-  <div>
-    <button type="submit">Find and convert</button>
-    <button id="verify" type="button">Verify chain &amp; TLS probe</button>
+  <div class="mt-2">
+    <button type="submit" class="btn btn-primary me-2">Find and convert</button>
+    <button id="verify" type="button" class="btn btn-secondary">Verify chain &amp; TLS probe</button>
   </div>
 </form>
 <pre id="finder_out"></pre>
@@ -88,11 +91,11 @@ document.getElementById('verify').addEventListener('click', async ()=>{
 <p>This will inspect your certs/keys, verify the chain, and test TLS handshake to the endpoint.</p>
 
 <form id="diag">
-  <label>Allow creating a decrypted test key (client.key.decrypted.pem)?
-    <input type="checkbox" name="allow_decrypt" />
+  <label class="form-check">Allow creating a decrypted test key (client.key.decrypted.pem)?
+    <input type="checkbox" name="allow_decrypt" class="form-check-input" />
   </label>
-  <button type="submit">Run Diagnostics</button>
-  <button id="fix" type="button">One-click Fix</button>
+  <button type="submit" class="btn btn-primary me-2">Run Diagnostics</button>
+  <button id="fix" type="button" class="btn btn-secondary">One-click Fix</button>
 </form>
 <pre id="diag_out"></pre>
 

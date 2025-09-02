@@ -6,49 +6,49 @@
 <form id="gen">
   <div class="grid">
     <label>Output directory
-      <input name="out_dir" value="{{ defaults.out_dir }}">
+      <input name="out_dir" value="{{ defaults.out_dir }}" class="form-control">
     </label>
     <label>Base name (files: base.key / base.csr)
-      <input name="base_name" value="{{ defaults.base_name }}">
+      <input name="base_name" value="{{ defaults.base_name }}" class="form-control">
     </label>
   </div>
 
   <h3>Subject (DN)</h3>
   <div class="grid">
     <label>Country (C)
-      <input name="country" value="{{ defaults.country }}">
+      <input name="country" value="{{ defaults.country }}" class="form-control">
     </label>
     <label>State (ST)
-      <input name="state" value="{{ defaults.state }}">
+      <input name="state" value="{{ defaults.state }}" class="form-control">
     </label>
     <label>Locality (L)
-      <input name="locality" value="{{ defaults.locality }}">
+      <input name="locality" value="{{ defaults.locality }}" class="form-control">
     </label>
     <label>Organization (O)
-      <input name="org" value="{{ defaults.org }}">
+      <input name="org" value="{{ defaults.org }}" class="form-control">
     </label>
     <label>Org Unit (OU)
-      <input name="org_unit" value="{{ defaults.org_unit }}">
+      <input name="org_unit" value="{{ defaults.org_unit }}" class="form-control">
     </label>
     <label>Common Name (CN)
-      <input name="common_name" value="{{ defaults.common_name }}">
+      <input name="common_name" value="{{ defaults.common_name }}" class="form-control">
     </label>
     <label>Email
-      <input name="email" value="{{ defaults.email }}">
+      <input name="email" value="{{ defaults.email }}" class="form-control">
     </label>
   </div>
 
   <h3>Key options</h3>
   <div class="grid">
     <label>Key size (RSA)
-      <input name="bits" type="number" value="{{ defaults.bits }}">
+      <input name="bits" type="number" value="{{ defaults.bits }}" class="form-control">
     </label>
     <label>Key passphrase (optional)
-      <input name="key_passphrase" type="password" value="{{ defaults.key_passphrase }}">
+      <input name="key_passphrase" type="password" value="{{ defaults.key_passphrase }}" class="form-control">
     </label>
   </div>
 
-  <button type="submit">Generate Key & CSR</button>
+  <button type="submit" class="btn btn-primary">Generate Key & CSR</button>
 </form>
 
 <pre id="out"></pre>

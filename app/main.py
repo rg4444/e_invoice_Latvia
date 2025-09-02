@@ -1,4 +1,4 @@
-import os, logging, base64, uuid, time, json
+import os, logging, base64, uuid, time, json, subprocess
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Query
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -407,6 +407,16 @@ def invoices_page():
                     "mtime": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
                 })
     return env.get_template("invoices.html").render(files=files)
+
+
+@app.post("/fetch-schemas")
+def fetch_schemas():
+    try:
+        script = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tools", "fetch_schemas.py"))
+        subprocess.run(["python", script], check=True)
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 @app.get("/invoice/download")
 def invoice_download(path: str):
