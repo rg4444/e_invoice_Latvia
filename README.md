@@ -409,10 +409,37 @@ python tools/fetch_schemas.py
 ```
 
 Why UBL 2.1?
-Latvia’s e-rēķins follows EN 16931 (EU e-invoicing standard) and commonly uses the UBL binding. For legal basis in public procurement, see MK Noteikumi Nr. 154 (which references the European standard).  
-Business rules from EN 16931 and Peppol BIS Billing 3.0 are implemented as Schematron (optional step, not included here).
+Latvia’s e-rēķins follows EN 16931 (EU e-invoicing standard) and commonly uses the UBL binding. For legal basis in public procurement, see MK Noteikumi Nr. 154 (which references the European standard).
 
-Note: XSD validation confirms structure, not all business rules. For full compliance, add Schematron checks for EN 16931 / Peppol in a later step.
+## Business-Rule Validation (Schematron)
+
+**What is Schematron?**  
+Schematron is a rule language for XML that uses XPath assertions to validate **business rules** (beyond structural XSD checks). The EN 16931 and Peppol BIS 3.0 e-invoicing rules are distributed as Schematron (often compiled to XSLT that produces an **SVRL** report).
+
+**Engine**  
+This app runs compiled Schematron XSLT using **Saxon-HE** (Java) and parses the **SVRL** output to list failures/warnings.
+
+**Setup**  
+1. Ensure Java is present inside the container. The Dockerfile installs `openjdk-17-jre-headless` and downloads `saxon-he.jar` to `/opt/saxon/saxon-he.jar`.  
+2. Place compiled rules under:
+
+
+```
+data/schematron/en16931/.xslt
+data/schematron/peppol/.xslt
+```
+
+*(If you only have `.sch`, add the ISO Schematron compilation step to generate XSLT, or provide precompiled XSLT from the rule provider.)*
+
+**Usage**  
+- Open **Invoice** tab, generate or load invoice, then:
+- Run **Validate XML** (XSD) for structural compliance.
+- Choose a **Schematron ruleset** and click **Validate (Schematron)** for business-rule compliance.
+- Results appear as a list and are available in **SVRL** form for audit under the debug panel.
+
+**Notes**
+- XSD ≠ business rules. For full compliance you need **both** XSD and Schematron.
+- Many EN/Peppol rules use **XPath 2.0**, hence the use of Saxon-HE. Python `lxml`’s built-in Schematron (XPath 1.0) is insufficient for those rule sets.
 
 ---
 

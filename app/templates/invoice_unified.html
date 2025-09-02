@@ -97,6 +97,19 @@
 </div>
 <pre id="valout"></pre>
 
+<h3>Business Rules (Schematron)</h3>
+<div class="grid">
+  <label>Ruleset (compiled XSLT)
+    <select id="sch">
+      <!-- Codex: populate at page load -->
+    </select>
+  </label>
+</div>
+<div class="actions">
+  <button type="button" id="sch_validate">Validate (Schematron)</button>
+</div>
+<pre id="schout"></pre>
+
 <style>
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .line{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:10px}
@@ -172,6 +185,32 @@ document.getElementById('validate').addEventListener('click', async ()=>{
   const res = await fetch('/invoice/validate', { method:'POST', body: fd });
   const js = await res.json();
   document.getElementById('valout').textContent = JSON.stringify(js, null, 2);
+});
+
+// populate ruleset dropdown
+(async function(){
+  try {
+    const r = await fetch('/schematron/list');
+    const js = await r.json();
+    const sel = document.getElementById('sch');
+    (js.rulesets || []).forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p; opt.textContent = p;
+      sel.appendChild(opt);
+    });
+  } catch(e) { console.warn(e); }
+})();
+
+document.getElementById('sch_validate').addEventListener('click', async ()=>{
+  const xml = document.getElementById('xml').value;
+  const sch = document.getElementById('sch').value;
+  const fd = new FormData();
+  fd.append('invoice_xml', xml);
+  fd.append('ruleset_path', sch);
+  const res = await fetch('/schematron/validate', { method:'POST', body: fd });
+  const js = await res.json();
+  const summary = (js.ok ? "OK" : "FAILED") + " — " + (js.issues||[]).length + " messages";
+  document.getElementById('schout').textContent = summary + "\n\n" + (js.issues||[]).join("\n");
 });
 </script>
 {% endblock %}
