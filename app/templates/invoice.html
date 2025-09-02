@@ -1,12 +1,14 @@
 {% extends "base.html" %}{% block content %}
 <h2>Invoice XML</h2>
 <form id="set">
-  <textarea name="xml" rows="26" style="width:100%">{{ xml }}</textarea>
-  <div>
-    <button type="submit">Update Editor</button>
-    <input type="file" id="file">
-    <button id="load">Load File</button>
-    <button id="save">Save to /data/samples/invoice-edited.xml</button>
+  <div class="mb-3">
+    <textarea name="xml" rows="26" class="form-control">{{ xml }}</textarea>
+  </div>
+  <div class="mb-3 d-flex gap-2 flex-wrap">
+    <button type="submit" class="btn btn-primary">Update Editor</button>
+    <input type="file" id="file" class="form-control w-auto">
+    <button id="load" class="btn btn-secondary">Load File</button>
+    <button id="save" class="btn btn-secondary">Save to /data/samples/invoice-edited.xml</button>
   </div>
 </form>
 <script>
