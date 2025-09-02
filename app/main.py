@@ -1,7 +1,7 @@
-import os, logging, base64, uuid
+import os, logging, base64, uuid, time, json
 from datetime import datetime
-from fastapi import FastAPI, Request, Form, UploadFile, File, Query
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Request, Form, Query
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from dotenv import load_dotenv
@@ -11,6 +11,7 @@ from requests import Session
 import requests
 
 from storage import load_config, save_config
+from ubl import read_reference_invoice, build_invoice_xml
 from wsdl_utils import http_get, try_parse_wsdl, curl_fetch_wsdl
 from wsdl_body import build_body_template
 from tools import (
@@ -29,6 +30,13 @@ from tools import (
 from validation import validate_xsd
 from utils_attachments import read_file_b64, new_content_id
 from soap_client import send_invoice, send_raw_envelope
+from lxml import etree
+
+INVOICE_DIR = "/data/invoices"
+SAMPLES_DIR = "/data/samples"
+XSD_DIR = "/data/xsd"
+
+os.makedirs(INVOICE_DIR, exist_ok=True)
 
 load_dotenv()
 LOG_DIR = "/data/logs"
@@ -48,7 +56,7 @@ env = Environment(
 
 # In-memory invoice editor state
 INVOICE_XML = ""
-DEFAULT_INVOICE = os.getenv("DEFAULT_INVOICE", "/data/samples/einvoice_nePVN2.xml")
+DEFAULT_INVOICE = os.getenv("DEFAULT_INVOICE", os.path.join(SAMPLES_DIR, "einvoice_reference.xml"))
 CHUNK_STATE = {}
 
 @app.on_event("startup")
@@ -59,6 +67,23 @@ def load_defaults():
 
 def render(tpl, **ctx):
     return HTMLResponse(env.get_template(tpl).render(**ctx))
+
+
+def _list_xsd_entrypoints():
+    entries = []
+    for root, _, files in os.walk(XSD_DIR):
+        for f in files:
+            if f.lower().endswith(".xsd"):
+                if "Invoice-2.1" in f or "CreditNote-2.1" in f or "maindoc" in root:
+                    entries.append(os.path.join(root, f))
+    entries = sorted(set(entries))
+    if not entries:
+        for root, _, files in os.walk(XSD_DIR):
+            for f in files:
+                if f.lower().endswith(".xsd"):
+                    entries.append(os.path.join(root, f))
+        entries = sorted(set(entries))
+    return entries
 
 
 def _log_div_call(operation: str, req_xml: str, resp_xml: str, took_ms: int, cfg: dict):
@@ -328,29 +353,75 @@ async def tools_verify():
     return JSONResponse(res)
 
 @app.get("/invoice", response_class=HTMLResponse)
-def invoice_page():
-    return render("invoice.html", xml=INVOICE_XML)
+def invoice_unified_page():
+    cfg = load_config()
+    ref_path = os.getenv("DEFAULT_INVOICE", os.path.join(SAMPLES_DIR, "einvoice_reference.xml"))
+    ref = read_reference_invoice(ref_path)
+    xsds = _list_xsd_entrypoints()
+    return env.get_template("invoice_unified.html").render(prefill=ref, xsds=xsds, cfg=cfg, ref_path=ref_path)
 
-@app.post("/invoice/load")
-async def invoice_load(file: UploadFile = File(...)):
-    global INVOICE_XML
-    INVOICE_XML = (await file.read()).decode("utf-8")
-    return JSONResponse({"status":"ok", "len": len(INVOICE_XML)})
+@app.post("/invoice/generate")
+def invoice_generate(payload: str = Form(...), save: str = Form("true"), filename: str = Form("")):
+    data = json.loads(payload)
+    xml_bytes = build_invoice_xml(data)
+    out = None
+    if save.lower() == "true":
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        name = filename.strip() or f"invoice-{ts}.xml"
+        out = os.path.join(INVOICE_DIR, name)
+        with open(out, "wb") as f:
+            f.write(xml_bytes)
+    return JSONResponse({"ok": True, "saved_to": out, "xml": xml_bytes.decode("utf-8")})
 
-@app.post("/invoice/save")
-def invoice_save():
-    os.makedirs("/data/samples", exist_ok=True)
-    path = "/data/samples/invoice-edited.xml"
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(INVOICE_XML)
-    return JSONResponse({"status":"ok", "path": path})
+@app.post("/invoice/validate")
+def invoice_validate(xml_text: str = Form(...), xsd_path: str = Form(...)):
+    try:
+        xml_doc = etree.fromstring(xml_text.encode("utf-8"))
+    except Exception as e:
+        return JSONResponse({"ok": False, "stage": "parse", "error": str(e)}, status_code=400)
+    try:
+        parser = etree.XMLParser(resolve_entities=False)
+        with open(xsd_path, "rb") as f:
+            schema_doc = etree.parse(f, parser)
+        schema = etree.XMLSchema(schema_doc)
+        schema.assertValid(xml_doc)
+        return JSONResponse({"ok": True, "message": "XSD validation passed"})
+    except etree.DocumentInvalid as e:
+        errs = [str(err) for err in schema.error_log] if 'schema' in locals() else [str(e)]
+        return JSONResponse({"ok": False, "stage": "xsd", "errors": errs}, status_code=422)
+    except Exception as e:
+        return JSONResponse({"ok": False, "stage": "xsd-load", "error": str(e)}, status_code=400)
+
+@app.get("/invoices", response_class=HTMLResponse)
+def invoices_page():
+    files = []
+    if os.path.isdir(INVOICE_DIR):
+        for fn in sorted(os.listdir(INVOICE_DIR)):
+            if fn.lower().endswith(".xml"):
+                p = os.path.join(INVOICE_DIR, fn)
+                stat = os.stat(p)
+                files.append({
+                    "name": fn,
+                    "path": p,
+                    "size": stat.st_size,
+                    "mtime": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
+                })
+    return env.get_template("invoices.html").render(files=files)
+
+@app.get("/invoice/download")
+def invoice_download(path: str):
+    base = os.path.abspath(INVOICE_DIR)
+    p = os.path.abspath(path)
+    if not p.startswith(base) or not os.path.exists(p):
+        return JSONResponse({"ok": False, "error": "Invalid path"}, status_code=400)
+    return FileResponse(p, filename=os.path.basename(p), media_type="application/xml")
 
 @app.post("/invoice/set")
 async def invoice_set(request: Request):
     global INVOICE_XML
     data = await request.json()
-    INVOICE_XML = data.get("xml","")
-    return JSONResponse({"status":"ok", "len": len(INVOICE_XML)})
+    INVOICE_XML = data.get("xml", "")
+    return JSONResponse({"status": "ok", "len": len(INVOICE_XML)})
 
 
 @app.get("/wsdlui", response_class=HTMLResponse)
@@ -575,11 +646,6 @@ def wsdl_op_template(
             errors.append({"url": wsdl_url, "error": str(e)})
 
     return JSONResponse({"ok": False, "errors": errors}, status_code=502)
-
-@app.get("/schema", response_class=HTMLResponse)
-def schema_page():
-    cfg = load_config()
-    return render("schema.html", cfg=cfg)
 
 @app.post("/validate")
 def validate_route():

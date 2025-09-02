@@ -56,10 +56,11 @@ app/                # FastAPI application
   templates/
   static/
 data/
-  samples/          # sample invoice XMLs (e.g. einvoice_nePVN2.xml)
+  samples/          # sample invoice XMLs (e.g. einvoice_reference.xml)
   xsd/              # place UBL XSD tree here (entry: UBL-Invoice-2.1.xsd)
   certs/            # client certificates (PEM/KEY or PKCS#12 converted)
   trust/            # custom CA bundle (optional)
+  invoices/         # generated invoices
   logs/             # saved request/response logs
 docker/
   Dockerfile
@@ -113,7 +114,7 @@ README.md
 2. Export environment variables:
 
    ```bash
-   export DEFAULT_INVOICE=/path/to/data/samples/einvoice_nePVN2.xml
+   export DEFAULT_INVOICE=/path/to/data/samples/einvoice_reference.xml
    export DEFAULT_SCHEMA=/path/to/data/xsd/UBL-Invoice-2.1.xsd
    ```
 
@@ -387,6 +388,31 @@ Use **Debug WSDL** in **Config → WSDL** if listing operations fails:
 ```
 CERTIFICATE_VERIFY_FAILED: self-signed certificate in certificate chain
 ```
+
+## Invoice Editor & XSD Validation
+
+Open **Invoice** tab to edit, generate, and validate a UBL 2.1 invoice.
+
+- The form is **prefilled** from a reference XML (default: `/data/samples/einvoice_reference.xml`).
+- Click **Generate XML** to preview, or **Generate & Save** to write into `/data/invoices/`.
+- Choose an **XSD entrypoint** (e.g. `data/xsd/maindoc/UBL-Invoice-2.1.xsd`) and click **Validate**.
+- See all saved invoices in the **Invoices** tab; download them as needed.
+
+### Schemas
+
+This tester uses **OASIS UBL 2.1** schemas (authoritative XML schema for invoices).  
+Fetch the full UBL 2.1 XSD set:
+
+```bash
+python tools/fetch_schemas.py
+# XSDs will be placed under data/xsd/
+```
+
+Why UBL 2.1?
+Latvia’s e-rēķins follows EN 16931 (EU e-invoicing standard) and commonly uses the UBL binding. For legal basis in public procurement, see MK Noteikumi Nr. 154 (which references the European standard).  
+Business rules from EN 16931 and Peppol BIS Billing 3.0 are implemented as Schematron (optional step, not included here).
+
+Note: XSD validation confirms structure, not all business rules. For full compliance, add Schematron checks for EN 16931 / Peppol in a later step.
 
 ---
 
