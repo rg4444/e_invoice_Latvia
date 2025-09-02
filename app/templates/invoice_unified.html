@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Invoice (Editor & Validation)</h2>
+
+<p class="muted">Reference prefill: <code>{{ ref_path }}</code></p>
+
+<form id="invForm">
+  <fieldset>
+    <legend>Header</legend>
+    <div class="grid">
+      <label>Invoice ID <input name="id" value="{{ prefill.id }}"></label>
+      <label>Issue Date <input name="issue_date" value="{{ prefill.issue_date }}"></label>
+      <label>Due Date <input name="due_date" value="{{ prefill.due_date }}"></label>
+      <label>Type Code <input name="type_code" value="{{ prefill.type_code or '380' }}"></label>
+      <label>Currency <input name="currency" value="{{ prefill.currency or 'EUR' }}"></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Supplier</legend>
+    <div class="grid">
+      <label>Name <input name="supplier_name" value="{{ prefill.supplier_name }}"></label>
+      <label>Company ID <input name="supplier_company_id" value="{{ prefill.supplier_company_id }}"></label>
+      <label>VAT Number <input name="supplier_vat" value="{{ prefill.supplier_vat }}"></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Customer</legend>
+    <div class="grid">
+      <label>Name <input name="customer_name" value="{{ prefill.customer_name }}"></label>
+      <label>Company ID <input name="customer_company_id" value="{{ prefill.customer_company_id }}"></label>
+      <label>VAT Number <input name="customer_vat" value="{{ prefill.customer_vat }}"></label>
+    </div>
+  </fieldset>
+
+  <fieldset id="linesBox">
+    <legend>Lines</legend>
+    <div id="lines">
+      {% for ln in prefill.lines %}
+      <div class="line">
+        <label>Line ID <input name="lines[{{ loop.index0 }}][id]" value="{{ ln.id }}"></label>
+        <label>Name <input name="lines[{{ loop.index0 }}][name]" value="{{ ln.name }}"></label>
+        <label>Qty <input name="lines[{{ loop.index0 }}][qty]" value="{{ ln.qty }}"></label>
+        <label>Price <input name="lines[{{ loop.index0 }}][price]" value="{{ ln.price }}"></label>
+        <label>Line Ext. <input name="lines[{{ loop.index0 }}][line_ext]" value="{{ ln.line_ext }}"></label>
+        <button type="button" class="rm">Remove</button>
+      </div>
+      {% endfor %}
+      {% if prefill.lines|length == 0 %}
+      <div class="line">
+        <label>Line ID <input name="lines[0][id]" value="1"></label>
+        <label>Name <input name="lines[0][name]" value="Service"></label>
+        <label>Qty <input name="lines[0][qty]" value="1"></label>
+        <label>Price <input name="lines[0][price]" value="100.00"></label>
+        <label>Line Ext. <input name="lines[0][line_ext]" value="100.00"></label>
+        <button type="button" class="rm">Remove</button>
+      </div>
+      {% endif %}
+    </div>
+    <button type="button" id="addLine">Add line</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Totals</legend>
+    <div class="grid">
+      <label>Tax Amount <input name="tax_amount" value="{{ prefill.tax_amount }}"></label>
+      <label>Payable Amount <input name="payable_amount" value="{{ prefill.payable_amount or '100.00' }}"></label>
+    </div>
+  </fieldset>
+
+  <div class="grid">
+    <label>File name (optional) <input name="filename" placeholder="invoice-YYYYMMDD-HHMMSS.xml"></label>
+  </div>
+
+  <div class="actions">
+    <button type="button" id="gen">Generate XML</button>
+    <button type="button" id="genSave">Generate & Save</button>
+  </div>
+</form>
+
+<h3>XML Preview</h3>
+<textarea id="xml" rows="16" style="width:100%"></textarea>
+
+<h3>Validate against XSD</h3>
+<div class="grid">
+  <label>Schema entrypoint
+    <select id="xsd">
+      {% for p in xsds %}
+      <option value="{{ p }}">{{ p }}</option>
+      {% endfor %}
+    </select>
+  </label>
+</div>
+<div class="actions">
+  <button type="button" id="validate">Validate XML</button>
+</div>
+<pre id="valout"></pre>
+
+<style>
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.line{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:10px}
+.actions{display:flex;gap:10px;margin:10px 0}
+.muted{opacity:.7}
+</style>
+
+<script>
+function formToJSON(form){
+  const fd = new FormData(form);
+  const obj = { lines: [] };
+  ['id','issue_date','due_date','type_code','currency',
+   'supplier_name','supplier_company_id','supplier_vat',
+   'customer_name','customer_company_id','customer_vat',
+   'tax_amount','payable_amount','filename'
+  ].forEach(k => obj[k] = fd.get(k) || "");
+  const lines = {};
+  for (const [k,v] of fd.entries()){
+    const m = k.match(/^lines\[(\d+)\]\[(\w+)\]$/);
+    if (m) {
+      const idx = parseInt(m[1],10);
+      const key = m[2];
+      lines[idx] = lines[idx] || {};
+      lines[idx][key] = v;
+    }
+  }
+  obj.lines = Object.keys(lines).sort((a,b)=>a-b).map(i => lines[i]);
+  return obj;
+}
+
+document.getElementById('addLine').addEventListener('click', ()=>{
+  const linesDiv = document.getElementById('lines');
+  const idx = linesDiv.querySelectorAll('.line').length;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'line';
+  wrapper.innerHTML = `
+    <label>Line ID <input name="lines[${idx}][id]" value="${idx+1}"></label>
+    <label>Name <input name="lines[${idx}][name]" value=""></label>
+    <label>Qty <input name="lines[${idx}][qty]" value="1"></label>
+    <label>Price <input name="lines[${idx}][price]" value="0.00"></label>
+    <label>Line Ext. <input name="lines[${idx}][line_ext]" value="0.00"></label>
+    <button type="button" class="rm">Remove</button>
+  `;
+  linesDiv.appendChild(wrapper);
+  wrapper.querySelector('.rm').addEventListener('click', ()=> wrapper.remove());
+});
+Array.from(document.querySelectorAll('.line .rm')).forEach(btn => btn.addEventListener('click', ()=> btn.closest('.line').remove()));
+
+async function doGenerate(save){
+  const data = formToJSON(document.getElementById('invForm'));
+  const fd = new FormData();
+  fd.append('payload', JSON.stringify(data));
+  fd.append('save', save ? 'true' : 'false');
+  fd.append('filename', data.filename || '');
+  const res = await fetch('/invoice/generate', { method:'POST', body: fd });
+  const js = await res.json();
+  if (js.ok){
+    document.getElementById('xml').value = js.xml || '';
+    if (js.saved_to) alert("Saved to: " + js.saved_to);
+  } else {
+    alert("Generation failed: " + (js.error || ''));
+  }
+}
+document.getElementById('gen').addEventListener('click', ()=> doGenerate(false));
+document.getElementById('genSave').addEventListener('click', ()=> doGenerate(true));
+
+document.getElementById('validate').addEventListener('click', async ()=>{
+  const xml = document.getElementById('xml').value;
+  const xsd = document.getElementById('xsd').value;
+  const fd = new FormData();
+  fd.append('xml_text', xml);
+  fd.append('xsd_path', xsd);
+  const res = await fetch('/invoice/validate', { method:'POST', body: fd });
+  const js = await res.json();
+  document.getElementById('valout').textContent = JSON.stringify(js, null, 2);
+});
+</script>
+{% endblock %}
