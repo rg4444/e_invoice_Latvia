@@ -7,8 +7,10 @@ from dotenv import load_dotenv
 from zeep import Client, Settings
 from zeep.transports import Transport
 from requests import Session
+import requests
 
 from storage import load_config, save_config
+from wsdl_utils import build_session_with_sslcontext, http_get, try_parse_wsdl, curl_fetch_wsdl
 from tools import (
     scan_for_materials,
     convert_cer_to_pem,
@@ -53,6 +55,16 @@ def load_defaults():
 
 def render(tpl, **ctx):
     return HTMLResponse(env.get_template(tpl).render(**ctx))
+
+
+def _wsdl_session(cfg):
+    # System CA trust + mTLS
+    return build_session_with_sslcontext(
+        cfg.get("endpoint", ""),
+        cfg.get("client_cert", ""),
+        cfg.get("client_key", ""),
+        cfg.get("client_key_pass", ""),
+    )
 
 
 @app.get("/cert", response_class=HTMLResponse)
@@ -300,32 +312,116 @@ async def invoice_set(request: Request):
 
 
 @app.post("/wsdl/load")
-def wsdl_load(url: str = Form(""), single: bool = Form(True)):
+def wsdl_load(url: str = Form(""), prefer_multi: bool = Form(True)):
+    """
+    Prefer ?wsdl (multi-doc WSDL) over ?singleWsdl (WCF single-file often breaks Zeep:
+    'NotImplementedError: schemaLocation is required').
+    Use system CA trust (verify=True). Keep mTLS via client cert/key.
+    """
     cfg = load_config()
-    wsdl_url = url or (cfg["endpoint"] + ("?singleWsdl" if single else "?wsdl"))
+    base = (url or cfg.get("endpoint") or "").strip()
+    if not base:
+        return JSONResponse({"ok": False, "error": "Endpoint not set"}, status_code=400)
 
-    s = Session()
-    s.verify = cfg.get("ca_bundle") or cfg.get("verify_tls", True)
-    cert = (cfg.get("client_cert"), cfg.get("client_key"))
-    if all(cert):
-        s.cert = cert
+    variants = ["?wsdl", "?singleWsdl"] if prefer_multi else ["?singleWsdl", "?wsdl"]
 
+    s = _wsdl_session(cfg)
     transport = Transport(session=s, timeout=30)
     settings = Settings(strict=False, xml_huge_tree=True)
-    cl = Client(wsdl=wsdl_url, transport=transport, settings=settings)
 
-    ops = []
-    for svc in cl.wsdl.services.values():
-        for port in svc.ports.values():
-            for op in port.binding._operations.values():
-                ops.append({
-                    "service": svc.name,
-                    "port": port.name,
-                    "name": op.name,
-                    "soap_action": op.soapaction,
-                    "input": str(op.input.signature(cl.wsdl.types)),
-                })
-    return JSONResponse({"wsdl": wsdl_url, "operations": ops})
+    errors = []
+    for suffix in variants:
+        wsdl_url = base + suffix
+        try:
+            Client(wsdl=wsdl_url, transport=transport, settings=settings)
+            return JSONResponse({"ok": True, "url": wsdl_url, "note": f"Loaded via {suffix}"})
+        except requests.exceptions.SSLError as e:
+            errors.append({"url": wsdl_url, "stage": "tls-verify", "error": str(e),
+                           "hint": "Use system CA for public hosts. Do not set CA bundle to your client chain for WSDL fetch."})
+        except NotImplementedError as e:
+            errors.append({"url": wsdl_url, "stage": "wsdl-parse", "error": str(e),
+                           "hint": "WCF ?singleWsdl can omit schemaLocation. Prefer ?wsdl."})
+        except Exception as e:
+            errors.append({"url": wsdl_url, "stage": "zeep-init", "error": str(e)})
+
+    return JSONResponse({"ok": False, "tried": variants, "errors": errors}, status_code=502)
+
+
+@app.post("/wsdl/debug")
+def wsdl_debug(url: str = Form(""), try_both: bool = Form(True), use_curl_fallback: bool = Form(True)):
+    cfg = load_config()
+    base = (url or cfg.get("endpoint") or "").strip()
+    if not base:
+        return JSONResponse({"ok": False, "error": "Endpoint not set"}, status_code=400)
+
+    results = []
+    variants = ["?wsdl", "?singleWsdl"] if try_both else ["?wsdl"]
+
+    # requests + system CA + mTLS
+    s = _wsdl_session(cfg)
+    transport = Transport(session=s, timeout=30)
+    settings = Settings(strict=False, xml_huge_tree=True)
+
+    for suffix in variants:
+        wsdl_url = base + suffix
+        entry = {"variant": f"requests{suffix}", "url": wsdl_url}
+        try:
+            # raw GET to inspect headers/body quickly
+            status, headers, content, err = http_get(s, wsdl_url)
+            parsed, note = (False, "")
+            if content:
+                parsed, note = try_parse_wsdl(content)
+            entry.update({
+                "ok": parsed and status == 200,
+                "status": status, "headers": headers,
+                "parse_note": note, "error": err,
+                "content_type": headers.get("Content-Type","") if headers else "",
+                "preview": content[:256].decode("utf-8","ignore") if content else ""
+            })
+        except Exception as e:
+            entry.update({"ok": False, "error": str(e)})
+        results.append(entry)
+
+    # curl fallback (can show raw headers/body with mTLS + encrypted key pass)
+    if use_curl_fallback:
+        for suffix in variants:
+            wsdl_url = base + suffix
+            status, raw_headers, err, body = curl_fetch_wsdl(
+                wsdl_url,
+                cfg.get("client_cert",""), cfg.get("client_key",""),
+                cfg.get("client_key_pass","")
+            )
+            parsed, note = try_parse_wsdl(body) if body else (False, "no body")
+            results.append({
+                "variant": f"curl{suffix}",
+                "url": wsdl_url,
+                "ok": parsed and status == 200,
+                "status": status,
+                "headers_raw": raw_headers,
+                "error": err,
+                "parse_note": note,
+                "preview": body[:256].decode("utf-8","ignore") if body else ""
+            })
+
+    # Suggestions
+    suggestions = []
+    any_200_html = any(("text/html" in r.get("content_type","") and r.get("status")==200) for r in results if r["variant"].startswith("requests"))
+    any_parse_err = any(("XML parse error" in (r.get("parse_note") or "")) for r in results)
+    any_401_403 = any(r.get("status") in (401,403) for r in results if "status" in r)
+    any_404 = any(r.get("status")==404 for r in results if "status" in r)
+
+    if any_200_html:
+        suggestions.append("Server returned HTML help page. Use ?wsdl or ?singleWsdl explicitly; avoid the bare service URL.")
+    if any_parse_err:
+        suggestions.append("Content is not valid WSDL. Confirm the exact ?wsdl URL and that mTLS client certificate is accepted.")
+    if any_401_403:
+        suggestions.append("Unauthorized/Forbidden. Verify your client certificate is registered for the DIV test environment.")
+    if any_404:
+        suggestions.append("Not Found. Verify the exact service path and casing.")
+    if not results:
+        suggestions.append("No results collected. Check network/DNS and container egress.")
+
+    return JSONResponse({"ok": any(r.get("ok") for r in results), "results": results, "suggestions": suggestions})
 
 @app.get("/schema", response_class=HTMLResponse)
 def schema_page():
