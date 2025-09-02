@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Invoices</h2>
-<table>
+<div class="mb-3">
+  <button id="fetchSchemas" class="btn btn-primary">Fetch Schemes</button>
+</div>
+<table class="table table-striped">
   <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
   <tbody>
     {% for f in files %}
@@ -10,7 +13,7 @@
       <td>{{ f.size }}</td>
       <td>{{ f.mtime }}</td>
       <td>
-        <a href="/invoice/download?path={{ f.path }}">Download</a>
+        <a href="/invoice/download?path={{ f.path }}" class="btn btn-sm btn-secondary">Download</a>
       </td>
     </tr>
     {% endfor %}
@@ -19,9 +22,14 @@
     {% endif %}
   </tbody>
 </table>
-<style>
-table{width:100%;border-collapse:collapse}
-th,td{border:1px solid #ddd;padding:8px}
-th{background:#f5f5f5;text-align:left}
-</style>
+<script>
+document.getElementById('fetchSchemas').addEventListener('click', async ()=>{
+  const res = await fetch('/fetch-schemas', {method:'POST'}).then(r=>r.json());
+  if(res.ok){
+    alert('Schemas fetched');
+  } else {
+    alert('Failed: ' + (res.error || ''));
+  }
+});
+</script>
 {% endblock %}

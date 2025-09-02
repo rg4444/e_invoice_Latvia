@@ -8,29 +8,29 @@
   <fieldset>
     <legend>Header</legend>
     <div class="grid">
-      <label>Invoice ID <input name="id" value="{{ prefill.id }}"></label>
-      <label>Issue Date <input name="issue_date" value="{{ prefill.issue_date }}"></label>
-      <label>Due Date <input name="due_date" value="{{ prefill.due_date }}"></label>
-      <label>Type Code <input name="type_code" value="{{ prefill.type_code or '380' }}"></label>
-      <label>Currency <input name="currency" value="{{ prefill.currency or 'EUR' }}"></label>
+      <label>Invoice ID <input name="id" value="{{ prefill.id }}" class="form-control"></label>
+      <label>Issue Date <input name="issue_date" value="{{ prefill.issue_date }}" class="form-control"></label>
+      <label>Due Date <input name="due_date" value="{{ prefill.due_date }}" class="form-control"></label>
+      <label>Type Code <input name="type_code" value="{{ prefill.type_code or '380' }}" class="form-control"></label>
+      <label>Currency <input name="currency" value="{{ prefill.currency or 'EUR' }}" class="form-control"></label>
     </div>
   </fieldset>
 
   <fieldset>
     <legend>Supplier</legend>
     <div class="grid">
-      <label>Name <input name="supplier_name" value="{{ prefill.supplier_name }}"></label>
-      <label>Company ID <input name="supplier_company_id" value="{{ prefill.supplier_company_id }}"></label>
-      <label>VAT Number <input name="supplier_vat" value="{{ prefill.supplier_vat }}"></label>
+      <label>Name <input name="supplier_name" value="{{ prefill.supplier_name }}" class="form-control"></label>
+      <label>Company ID <input name="supplier_company_id" value="{{ prefill.supplier_company_id }}" class="form-control"></label>
+      <label>VAT Number <input name="supplier_vat" value="{{ prefill.supplier_vat }}" class="form-control"></label>
     </div>
   </fieldset>
 
   <fieldset>
     <legend>Customer</legend>
     <div class="grid">
-      <label>Name <input name="customer_name" value="{{ prefill.customer_name }}"></label>
-      <label>Company ID <input name="customer_company_id" value="{{ prefill.customer_company_id }}"></label>
-      <label>VAT Number <input name="customer_vat" value="{{ prefill.customer_vat }}"></label>
+      <label>Name <input name="customer_name" value="{{ prefill.customer_name }}" class="form-control"></label>
+      <label>Company ID <input name="customer_company_id" value="{{ prefill.customer_company_id }}" class="form-control"></label>
+      <label>VAT Number <input name="customer_vat" value="{{ prefill.customer_vat }}" class="form-control"></label>
     </div>
   </fieldset>
 
@@ -39,53 +39,53 @@
     <div id="lines">
       {% for ln in prefill.lines %}
       <div class="line">
-        <label>Line ID <input name="lines[{{ loop.index0 }}][id]" value="{{ ln.id }}"></label>
-        <label>Name <input name="lines[{{ loop.index0 }}][name]" value="{{ ln.name }}"></label>
-        <label>Qty <input name="lines[{{ loop.index0 }}][qty]" value="{{ ln.qty }}"></label>
-        <label>Price <input name="lines[{{ loop.index0 }}][price]" value="{{ ln.price }}"></label>
-        <label>Line Ext. <input name="lines[{{ loop.index0 }}][line_ext]" value="{{ ln.line_ext }}"></label>
-        <button type="button" class="rm">Remove</button>
+        <label>Line ID <input name="lines[{{ loop.index0 }}][id]" value="{{ ln.id }}" class="form-control"></label>
+        <label>Name <input name="lines[{{ loop.index0 }}][name]" value="{{ ln.name }}" class="form-control"></label>
+        <label>Qty <input name="lines[{{ loop.index0 }}][qty]" value="{{ ln.qty }}" class="form-control"></label>
+        <label>Price <input name="lines[{{ loop.index0 }}][price]" value="{{ ln.price }}" class="form-control"></label>
+        <label>Line Ext. <input name="lines[{{ loop.index0 }}][line_ext]" value="{{ ln.line_ext }}" class="form-control"></label>
+        <button type="button" class="btn btn-danger btn-sm rm">Remove</button>
       </div>
       {% endfor %}
       {% if prefill.lines|length == 0 %}
       <div class="line">
-        <label>Line ID <input name="lines[0][id]" value="1"></label>
-        <label>Name <input name="lines[0][name]" value="Service"></label>
-        <label>Qty <input name="lines[0][qty]" value="1"></label>
-        <label>Price <input name="lines[0][price]" value="100.00"></label>
-        <label>Line Ext. <input name="lines[0][line_ext]" value="100.00"></label>
-        <button type="button" class="rm">Remove</button>
+        <label>Line ID <input name="lines[0][id]" value="1" class="form-control"></label>
+        <label>Name <input name="lines[0][name]" value="Service" class="form-control"></label>
+        <label>Qty <input name="lines[0][qty]" value="1" class="form-control"></label>
+        <label>Price <input name="lines[0][price]" value="100.00" class="form-control"></label>
+        <label>Line Ext. <input name="lines[0][line_ext]" value="100.00" class="form-control"></label>
+        <button type="button" class="btn btn-danger btn-sm rm">Remove</button>
       </div>
       {% endif %}
     </div>
-    <button type="button" id="addLine">Add line</button>
+    <button type="button" id="addLine" class="btn btn-secondary">Add line</button>
   </fieldset>
 
   <fieldset>
     <legend>Totals</legend>
     <div class="grid">
-      <label>Tax Amount <input name="tax_amount" value="{{ prefill.tax_amount }}"></label>
-      <label>Payable Amount <input name="payable_amount" value="{{ prefill.payable_amount or '100.00' }}"></label>
+      <label>Tax Amount <input name="tax_amount" value="{{ prefill.tax_amount }}" class="form-control"></label>
+      <label>Payable Amount <input name="payable_amount" value="{{ prefill.payable_amount or '100.00' }}" class="form-control"></label>
     </div>
   </fieldset>
 
   <div class="grid">
-    <label>File name (optional) <input name="filename" placeholder="invoice-YYYYMMDD-HHMMSS.xml"></label>
+    <label>File name (optional) <input name="filename" placeholder="invoice-YYYYMMDD-HHMMSS.xml" class="form-control"></label>
   </div>
 
   <div class="actions">
-    <button type="button" id="gen">Generate XML</button>
-    <button type="button" id="genSave">Generate & Save</button>
+    <button type="button" id="gen" class="btn btn-primary">Generate XML</button>
+    <button type="button" id="genSave" class="btn btn-secondary">Generate & Save</button>
   </div>
 </form>
 
 <h3>XML Preview</h3>
-<textarea id="xml" rows="16" style="width:100%"></textarea>
+<textarea id="xml" rows="16" style="width:100%" class="form-control"></textarea>
 
 <h3>Validate against XSD</h3>
 <div class="grid">
   <label>Schema entrypoint
-    <select id="xsd">
+    <select id="xsd" class="form-select">
       {% for p in xsds %}
       <option value="{{ p }}">{{ p }}</option>
       {% endfor %}
@@ -93,7 +93,7 @@
   </label>
 </div>
 <div class="actions">
-  <button type="button" id="validate">Validate XML</button>
+  <button type="button" id="validate" class="btn btn-primary">Validate XML</button>
 </div>
 <pre id="valout"></pre>
 
@@ -133,12 +133,12 @@ document.getElementById('addLine').addEventListener('click', ()=>{
   const wrapper = document.createElement('div');
   wrapper.className = 'line';
   wrapper.innerHTML = `
-    <label>Line ID <input name="lines[${idx}][id]" value="${idx+1}"></label>
-    <label>Name <input name="lines[${idx}][name]" value=""></label>
-    <label>Qty <input name="lines[${idx}][qty]" value="1"></label>
-    <label>Price <input name="lines[${idx}][price]" value="0.00"></label>
-    <label>Line Ext. <input name="lines[${idx}][line_ext]" value="0.00"></label>
-    <button type="button" class="rm">Remove</button>
+    <label>Line ID <input name="lines[${idx}][id]" value="${idx+1}" class="form-control"></label>
+    <label>Name <input name="lines[${idx}][name]" value="" class="form-control"></label>
+    <label>Qty <input name="lines[${idx}][qty]" value="1" class="form-control"></label>
+    <label>Price <input name="lines[${idx}][price]" value="0.00" class="form-control"></label>
+    <label>Line Ext. <input name="lines[${idx}][line_ext]" value="0.00" class="form-control"></label>
+    <button type="button" class="btn btn-danger btn-sm rm">Remove</button>
   `;
   linesDiv.appendChild(wrapper);
   wrapper.querySelector('.rm').addEventListener('click', ()=> wrapper.remove());

@@ -6,13 +6,16 @@
 
 <div class="grid">
   <label>Endpoint (service URL)
-    <input id="wb_url" value="{{cfg.endpoint}}">
+    <input id="wb_url" value="{{cfg.endpoint}}" class="form-control">
   </label>
-  <label><input type="checkbox" id="wb_prefer" checked> Prefer ?wsdl (recommended)</label>
+  <label class="form-check">
+    <input type="checkbox" id="wb_prefer" class="form-check-input" checked>
+    <span class="form-check-label">Prefer ?wsdl (recommended)</span>
+  </label>
 </div>
-<div>
-  <button id="wb_load">Load & List Operations</button>
-  <input id="wb_filter" placeholder="Filter operations by name...">
+<div class="mb-3">
+  <button id="wb_load" class="btn btn-primary me-2">Load & List Operations</button>
+  <input id="wb_filter" class="form-control" placeholder="Filter operations by name...">
 </div>
 
 <pre id="wb_msg"></pre>
@@ -37,9 +40,9 @@ function renderList(){
       <div>Operation: <code>${o.operation}</code></div>
       <div>SOAPAction: <code>${o.soap_action || '(none)'}</code></div>
       <div>Signature: <code>${o.input_signature}</code></div>
-      <button data-svc="${o.service}" data-port="${o.port}" data-op="${o.operation}" class="wb_use">Use in Send</button>
-    </div>
-  `).join('');
+      <button data-svc="${o.service}" data-port="${o.port}" data-op="${o.operation}" class="btn btn-secondary wb_use mt-2">Use in Send</button>
+      </div>
+    `).join('');
   document.querySelectorAll('.wb_use').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const fd = new FormData();
