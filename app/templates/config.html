@@ -1,10 +1,47 @@
 {% extends "base.html" %}{% block content %}
 <h2>Configuration</h2>
-<div class="mb-3">
-  <button id="load_wsdl" class="btn btn-secondary mb-3">Load WSDL</button>
-  <ul id="wsdl_ops" class="list-group"></ul>
-  <div id="wsdl_err" class="text-danger"></div>
+
+<h3>WSDL</h3>
+<div class="grid">
+  <label>Service URL (endpoint)
+    <input id="wsdl_url" value="{{cfg.endpoint}}">
+  </label>
+  <label><input type="checkbox" id="prefer_multi" checked> Prefer ?wsdl (recommended)</label>
 </div>
+<div>
+  <button id="wsdl_load">Load WSDL</button>
+  <button id="wsdl_debug">Debug WSDL</button>
+</div>
+<pre id="wsdl_out"></pre>
+<div id="wsdl_suggest"></div>
+
+<script>
+document.getElementById('wsdl_load').addEventListener('click', async ()=>{
+  const url = document.getElementById('wsdl_url').value;
+  const prefer_multi = document.getElementById('prefer_multi').checked ? 'true' : 'false';
+  const fd = new FormData();
+  fd.append('url', url);
+  fd.append('prefer_multi', prefer_multi);
+  const res = await fetch('/wsdl/load', { method:'POST', body: fd });
+  const js = await res.json();
+  document.getElementById('wsdl_out').textContent = JSON.stringify(js, null, 2);
+  document.getElementById('wsdl_suggest').textContent = '';
+});
+
+document.getElementById('wsdl_debug').addEventListener('click', async ()=>{
+  const url = document.getElementById('wsdl_url').value;
+  const fd = new FormData();
+  fd.append('url', url);
+  fd.append('try_both', 'true');
+  fd.append('use_curl_fallback', 'true');
+  const res = await fetch('/wsdl/debug', { method:'POST', body: fd });
+  const js = await res.json();
+  document.getElementById('wsdl_out').textContent = JSON.stringify(js, null, 2);
+  const sug = (js.suggestions || []).map(s => `- ${s}`).join('\n');
+  document.getElementById('wsdl_suggest').textContent = sug ? ("Suggestions:\n" + sug) : "";
+});
+</script>
+
 <h3>Find & Convert (OpenSSL)</h3>
 <p>Choose a directory under <code>/data</code> that contains your certificate files.
 I will look for: <code>.key</code> (private key), <code>.cer</code>/<code>.pem</code> (client cert), and <code>.p7b</code>/<code>.p7c</code> (chain).</p>
@@ -150,43 +187,6 @@ document.getElementById('fix').addEventListener('click', async ()=>{
   </div>
   <button type="submit" class="btn btn-primary">Save</button>
 </form>
-<script>
-const cfg = {{ cfg | tojson | safe }};
-document.getElementById('load_wsdl').addEventListener('click', async ()=>{
-  const fd = new FormData();
-  const res = await fetch('/wsdl/load', { method:'POST', body: fd });
-  const ops = document.getElementById('wsdl_ops');
-  const err = document.getElementById('wsdl_err');
-  ops.innerHTML = '';
-  err.textContent = '';
-  if (!res.ok) {
-    err.textContent = 'Failed to load WSDL';
-    return;
-  }
-  const js = await res.json();
-  if (!js.operations || !js.operations.length) {
-    err.textContent = 'No operations found';
-    return;
-  }
-  js.operations.forEach(op => {
-    const li = document.createElement('li');
-    li.textContent = `${op.name} (${op.soap_action})`;
-    li.className = 'list-group-item list-group-item-action';
-    li.style.cursor = 'pointer';
-    li.addEventListener('click', async ()=>{
-      const fd = new FormData();
-      Object.entries(cfg).forEach(([k,v]) => fd.append(k, v));
-      fd.set('soap_action', op.soap_action || '');
-      await fetch('/save-config', { method:'POST', body: fd });
-      cfg.soap_action = op.soap_action || '';
-      const body = `<${op.name}></${op.name}>`;
-      await fetch('/invoice/set', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({xml: body})});
-      alert(`Selected operation ${op.name}`);
-    });
-    ops.appendChild(li);
-  });
-});
-</script>
 <script>
 document.getElementById('cfg').addEventListener('submit', async (e) => {
   e.preventDefault();

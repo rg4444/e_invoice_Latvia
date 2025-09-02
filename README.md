@@ -225,8 +225,57 @@ WSDL cannot be fetched or contains no operations, an error message is shown.
 
 ## Notes
 
-- Ensure the **UBL XSD tree** is placed under `data/xsd/` so relative imports resolve.  
+- Ensure the **UBL XSD tree** is placed under `data/xsd/` so relative imports resolve.
 - The app checks “success” by:
-  - HTTP status = `200` **and**  
-  - Response contains the configured *Success indicator* substring (default: `"Valid"`).  
+  - HTTP status = `200` **and**
+  - Response contains the configured *Success indicator* substring (default: `"Valid"`).
 - This is a **test tool only**, not for production invoice dispatch.
+
+## Known Issue: CA bundle vs. public trust (WSDL fetch)
+
+When fetching the WSDL from the DIV test endpoint (`*.vraa.gov.lv`), **do not** set the app's **CA bundle** to your **client certificate chain** (e.g., `/data/certs/chain.pem`). That file is the **client chain for mTLS**, not a public trust store. If you point HTTP verification at it, requests/zeep may fail with:
+
+```
+requests.exceptions.SSLError: CERTIFICATE_VERIFY_FAILED: self-signed certificate in certificate chain
+```
+
+**Solution:** For WSDL loading, the app uses the **system CA store** (public roots) and still presents your client certificate for mTLS. Leave the **CA bundle** field empty for public endpoints like `*.vraa.gov.lv`.
+
+---
+
+## WSDL loading (WCF)
+
+The DIV WCF service exposes two WSDL endpoints:
+
+- `?wsdl` (**multi-document**, recommended) — Zeep downloads `?xsd=xsd0`, `?xsd=xsd1`, … with proper `schemaLocation`.
+- `?singleWsdl` (**single file**) — may include `<xs:include/>` **without** `schemaLocation`, which Zeep rejects with:
+
+```
+NotImplementedError: schemaLocation is required
+```
+
+If you see this error, use **`?wsdl`**.
+
+The app’s **Load WSDL** button defaults to **prefer ?wsdl** and uses **system CAs** for verification while keeping **mTLS** with your client cert/key.
+
+---
+
+## Troubleshooting WSDL
+
+Open **Config → WSDL → Debug WSDL**. The tool will:
+
+- Try both `?wsdl` and `?singleWsdl`
+- Use system CA trust + mTLS (works with encrypted keys)
+- Fall back to `curl` (captures raw headers/body)
+- Show status, content-type, a preview, and parse notes
+- Provide suggestions:
+
+Common hints:
+- **HTML 200 help page** → You hit the service URL, not the WSDL; use `?wsdl` or `?singleWsdl`.
+- **401/403** → Client certificate not authorized in this environment.
+- **certificate verify failed** → Do not set CA bundle to your client chain for WSDL; use system CA.
+- **schemaLocation is required** → WCF `?singleWsdl` quirk; switch to `?wsdl`.
+
+When WSDL loads, you can inspect it under `/data/wsdl/` or import into SoapUI to discover operations/actions.
+
+---
