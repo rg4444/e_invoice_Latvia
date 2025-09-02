@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Generate Certificate (Key + CSR)</h2>
+<p>This will create a private key (<code>.key</code>) and a certificate signing request (<code>.csr</code>) in <code>/data/certs</code>. Keep the private key secure.</p>
+
+<form id="gen">
+  <div class="grid">
+    <label>Output directory
+      <input name="out_dir" value="{{ defaults.out_dir }}">
+    </label>
+    <label>Base name (files: base.key / base.csr)
+      <input name="base_name" value="{{ defaults.base_name }}">
+    </label>
+  </div>
+
+  <h3>Subject (DN)</h3>
+  <div class="grid">
+    <label>Country (C)
+      <input name="country" value="{{ defaults.country }}">
+    </label>
+    <label>State (ST)
+      <input name="state" value="{{ defaults.state }}">
+    </label>
+    <label>Locality (L)
+      <input name="locality" value="{{ defaults.locality }}">
+    </label>
+    <label>Organization (O)
+      <input name="org" value="{{ defaults.org }}">
+    </label>
+    <label>Org Unit (OU)
+      <input name="org_unit" value="{{ defaults.org_unit }}">
+    </label>
+    <label>Common Name (CN)
+      <input name="common_name" value="{{ defaults.common_name }}">
+    </label>
+    <label>Email
+      <input name="email" value="{{ defaults.email }}">
+    </label>
+  </div>
+
+  <h3>Key options</h3>
+  <div class="grid">
+    <label>Key size (RSA)
+      <input name="bits" type="number" value="{{ defaults.bits }}">
+    </label>
+    <label>Key passphrase (optional)
+      <input name="key_passphrase" type="password" value="{{ defaults.key_passphrase }}">
+    </label>
+  </div>
+
+  <button type="submit">Generate Key & CSR</button>
+</form>
+
+<pre id="out"></pre>
+
+<div id="after" style="display:none">
+  <h3>Next steps (VDAA)</h3>
+  <ol>
+    <li>Submit the <strong>.csr</strong> file to VDAA according to their enrollment instructions.</li>
+    <li>When you receive <strong>.cer</strong> (issued certificate) and optionally <strong>.p7b</strong> (chain), go to <em>Config → Find & Convert</em> to create <code>client.pem</code>, <code>chain.pem</code>, and <code>client_full.pem</code>.</li>
+    <li>Ensure Config paths point to <code>/data/certs/client_full.pem</code> and <code>/data/certs/client.key</code>, then run <em>Verify chain & TLS probe</em>.</li>
+  </ol>
+</div>
+
+<script>
+document.getElementById('gen').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch('/cert/generate', { method:'POST', body: fd });
+  const js = await res.json();
+  const out = document.getElementById('out');
+  const after = document.getElementById('after');
+
+  if (js.ok) {
+    const csrLink = `/cert/download?path=${encodeURIComponent(js.csr_path)}`;
+    out.textContent = [
+      "✔ Generated successfully",
+      `Key: ${js.key_path}`,
+      `CSR: ${js.csr_path}`,
+      "",
+      "CSR preview:",
+      js.csr_text
+    ].join("\n");
+    after.style.display = 'block';
+
+    const a = document.createElement('a');
+    a.href = csrLink;
+    a.textContent = "Download CSR";
+    a.style.display = 'inline-block';
+    a.style.marginTop = '8px';
+    out.parentNode.insertBefore(a, out.nextSibling);
+  } else {
+    out.textContent = "✖ " + (js.error || "Generation failed");
+  }
+});
+</script>
+{% endblock %}

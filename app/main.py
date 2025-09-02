@@ -1,5 +1,5 @@
 import os, logging
-from fastapi import FastAPI, Request, Form, UploadFile, File
+from fastapi import FastAPI, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -19,6 +19,8 @@ from tools import (
     tls_probe,
     diagnose,
     auto_fix,
+    gen_rsa_key_and_csr,
+    file_download_response,
 )
 from validation import validate_xsd
 from soap_client import send_invoice
@@ -51,6 +53,62 @@ def load_defaults():
 
 def render(tpl, **ctx):
     return HTMLResponse(env.get_template(tpl).render(**ctx))
+
+
+@app.get("/cert", response_class=HTMLResponse)
+def certgen_page():
+    defaults = {
+        "out_dir": "/data/certs",
+        "base_name": "client",
+        "country": "LV",
+        "state": "Riga",
+        "locality": "Riga",
+        "org": "Organization Name",
+        "org_unit": "IT",
+        "common_name": "your.company.lv",
+        "email": "it@example.com",
+        "bits": 2048,
+        "key_passphrase": "",
+    }
+    return env.get_template("certgen.html").render(defaults=defaults)
+
+
+@app.post("/cert/generate")
+def certgen_generate(
+    out_dir: str = Form("/data/certs"),
+    base_name: str = Form("client"),
+    country: str = Form("LV"),
+    state: str = Form("Riga"),
+    locality: str = Form("Riga"),
+    org: str = Form("Organization Name"),
+    org_unit: str = Form("IT"),
+    common_name: str = Form("your.company.lv"),
+    email: str = Form("it@example.com"),
+    bits: int = Form(2048),
+    key_passphrase: str = Form(""),
+):
+    res = gen_rsa_key_and_csr(
+        out_dir=out_dir,
+        base_name=base_name,
+        country=country,
+        state=state,
+        locality=locality,
+        org=org,
+        org_unit=org_unit,
+        common_name=common_name,
+        email=email,
+        bits=bits,
+        key_passphrase=key_passphrase,
+    )
+    return JSONResponse(res)
+
+
+@app.get("/cert/download")
+def cert_download(path: str = Query(...)):
+    try:
+        return file_download_response(path)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 @app.get("/", response_class=HTMLResponse)
 def home():

@@ -1,5 +1,6 @@
 import os, re, subprocess, shlex, glob, shutil
 from typing import Dict, List, Tuple
+from fastapi.responses import FileResponse
 from storage import load_config, save_config
 
 OPENSSL = "openssl"
@@ -255,3 +256,82 @@ def auto_fix() -> Dict:
     cfg["client_cert"] = client_full
     save_config(cfg)
     return {"ok": True, "outputs": outputs, "applied_paths": {"client_cert": cfg["client_cert"]}}
+
+
+def gen_rsa_key_and_csr(
+    out_dir: str,
+    base_name: str,
+    country: str,
+    state: str,
+    locality: str,
+    org: str,
+    org_unit: str,
+    common_name: str,
+    email: str,
+    bits: int = 2048,
+    key_passphrase: str = "",
+):
+    """Generate RSA private key and CSR using OpenSSL."""
+    os.makedirs(out_dir, exist_ok=True)
+    key_path = os.path.join(out_dir, f"{base_name}.key")
+    csr_path = os.path.join(out_dir, f"{base_name}.csr")
+
+    subj = f"/C={country}/ST={state}/L={locality}/O={org}/OU={org_unit}/CN={common_name}/emailAddress={email}"
+
+    if key_passphrase:
+        key_cmd = (
+            f"{OPENSSL} genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:{bits} "
+            f"-aes-256-cbc -pass pass:{shlex.quote(key_passphrase)} -out {shlex.quote(key_path)}"
+        )
+    else:
+        key_cmd = f"{OPENSSL} genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:{bits} -out {shlex.quote(key_path)}"
+
+    code_k, out_k, err_k = _run(key_cmd)
+    if code_k != 0:
+        return {
+            "ok": False,
+            "error": f"Key generation failed: {err_k}",
+            "key_path": key_path,
+            "csr_path": csr_path,
+        }
+
+    csr_cmd = f"{OPENSSL} req -new -sha256 -key {shlex.quote(key_path)} -out {shlex.quote(csr_path)} -subj \"{subj}\""
+    if key_passphrase:
+        csr_cmd += f" -passin pass:{shlex.quote(key_passphrase)}"
+
+    code_c, out_c, err_c = _run(csr_cmd)
+    if code_c != 0:
+        return {
+            "ok": False,
+            "error": f"CSR generation failed: {err_c}",
+            "key_path": key_path,
+            "csr_path": csr_path,
+        }
+
+    try:
+        csr_text = open(csr_path, "r", encoding="utf-8").read()
+    except Exception:
+        csr_text = "<unable to read csr file>"
+
+    return {
+        "ok": True,
+        "key_path": key_path,
+        "csr_path": csr_path,
+        "csr_text": csr_text,
+        "notes": [
+            "Send the CSR (.csr) to VDAA according to their enrollment instructions.",
+            "When you receive .cer (issued certificate) and .p7b (chain), return to 'Find & Convert' to assemble client_full.pem.",
+        ],
+    }
+
+
+def file_download_response(path: str):
+    """Return a safe FileResponse limited to /data/certs."""
+    base = os.path.abspath("/data/certs")
+    p = os.path.abspath(path)
+    if not p.startswith(base):
+        raise PermissionError("Invalid path")
+    if not os.path.exists(p):
+        raise FileNotFoundError(p)
+    filename = os.path.basename(p)
+    return FileResponse(p, filename=filename, media_type="application/octet-stream")
