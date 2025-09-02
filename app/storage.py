@@ -3,18 +3,19 @@ import json, os
 CONFIG_PATH = "/data/config.json"
 
 DEFAULTS = {
-    "endpoint": "",
+    "endpoint": "https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterface/UnifiedService.svc",
     "soap_action": "",
     "username": "",
     "password": "",
-    "client_cert": "",        # /data/certs/client.pem
-    "client_key": "",         # /data/certs/client.key
-    "client_p12": "",         # /data/certs/client.p12 (optional)
+    "client_cert": "/data/certs/client_full.pem",
+    "client_key": "/data/certs/client.key",
+    "client_key_pass": "",
+    "client_p12": "",
     "p12_password": "",
     "verify_tls": True,
-    "ca_bundle": "",          # /data/trust/ca.pem (optional)
-    "schema_path": os.getenv("DEFAULT_SCHEMA", ""),
-    "success_indicator": "Valid",
+    "ca_bundle": "/data/certs/chain.pem",
+    "schema_path": os.getenv("DEFAULT_SCHEMA", "/data/xsd/UBL-Invoice-2.1.xsd"),
+    "success_indicator": "Success",
 }
 
 def load_config():
