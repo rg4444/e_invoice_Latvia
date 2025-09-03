@@ -1,5 +1,7 @@
 # e-Rēķini Tester
 
+![Screenshot of the application interface](e_invoice.PNG)
+
 A minimal **FastAPI** web application to **edit**, **validate**, and **send** e-invoices via **SOAP** with **WS-Security UsernameToken (digest)** and optional **mutual TLS**.
 
 This tool is intended as a **local integration tester** for the Latvian VDAA *e-Rēķini* system.  
