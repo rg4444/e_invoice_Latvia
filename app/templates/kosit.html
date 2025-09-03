@@ -42,8 +42,9 @@ document.getElementById('run').addEventListener('click', async ()=>{
   const js = await res.json();
   const lines = [];
   lines.push("OK: " + js.ok);
-  lines.push("Exit code: " + js.exit_code);
-  lines.push("Took (ms): " + js.took_ms);
+  if (js.error) lines.push("Error: " + js.error);
+  if ('exit_code' in js) lines.push("Exit code: " + js.exit_code);
+  if ('took_ms' in js) lines.push("Took (ms): " + js.took_ms);
   if (js.xml_report) lines.push("XML report: " + js.xml_report);
   if (js.html_report) lines.push("HTML report: " + js.html_report);
   if (js.stdout) lines.push("\nSTDOUT:\n" + js.stdout.trim());

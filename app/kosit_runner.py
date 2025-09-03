@@ -4,6 +4,21 @@ from typing import Dict
 KOSIT_JAR = os.environ.get("KOSIT_JAR") or "/opt/kosit/bin/validator-1.5.2-standalone.jar"
 KOSIT_CONF_DIR = os.environ.get("KOSIT_CONF_DIR") or "/data/kosit/bis"
 
+
+def _error(msg: str) -> Dict:
+    """Return a uniform error structure for early failures."""
+    return {
+        "ok": False,
+        "error": msg,
+        "took_ms": 0,
+        "cmd": "",
+        "exit_code": None,
+        "stdout": "",
+        "stderr": "",
+        "xml_report": "",
+        "html_report": "",
+    }
+
 def run_kosit(invoice_path: str, out_dir: str, html_report: bool = True) -> Dict:
     invoice_path = os.path.abspath(invoice_path)
     out_dir = os.path.abspath(out_dir)
@@ -13,13 +28,15 @@ def run_kosit(invoice_path: str, out_dir: str, html_report: bool = True) -> Dict
     repo_dir  = KOSIT_CONF_DIR  # contains scenarios.xml and resources/
 
     if not os.path.exists(KOSIT_JAR):
-        return {"ok": False, "error": f"KoSIT jar not found: {KOSIT_JAR}"}
+        return _error(f"KoSIT jar not found: {KOSIT_JAR}")
     if not zipfile.is_zipfile(KOSIT_JAR):
-        return {"ok": False, "error": f"KoSIT jar is corrupt: {KOSIT_JAR}. Re-download using tools/fetch_validator.py"}
+        return _error(
+            f"KoSIT jar is corrupt: {KOSIT_JAR}. Re-download using tools/fetch_validator.py"
+        )
     if not os.path.exists(scenarios):
-        return {"ok": False, "error": f"scenarios.xml not found at: {scenarios}"}
+        return _error(f"scenarios.xml not found at: {scenarios}")
     if not os.path.exists(invoice_path):
-        return {"ok": False, "error": f"Invoice not found: {invoice_path}"}
+        return _error(f"Invoice not found: {invoice_path}")
 
     cmd = [
         "java", "-jar", KOSIT_JAR,
