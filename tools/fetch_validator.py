@@ -2,14 +2,15 @@
 """Download the KoSIT validator jar.
 
 By default it fetches version 1.5.2 and stores it under
-``/opt/kosit/bin/validator-<version>-standalone.jar``.  The destination
-and version can be overridden via the ``KOSIT_HOME`` and
-``KOSIT_VER`` environment variables respectively.
+``data/kosit/bin/validator-<version>-standalone.jar`` relative to the
+repository root. The destination and version can be overridden via the
+``KOSIT_HOME`` and ``KOSIT_VER`` environment variables respectively.
 """
 import os, urllib.request, zipfile, io
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KOSIT_VER = os.environ.get("KOSIT_VER", "1.5.2")
-KOSIT_HOME = os.environ.get("KOSIT_HOME", "/opt/kosit")
+KOSIT_HOME = os.environ.get("KOSIT_HOME", os.path.join(BASE_DIR, "data", "kosit"))
 DEST_DIR = os.path.join(KOSIT_HOME, "bin")
 
 os.makedirs(DEST_DIR, exist_ok=True)

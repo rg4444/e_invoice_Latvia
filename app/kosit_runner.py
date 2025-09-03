@@ -1,7 +1,9 @@
 import os, subprocess, time, pathlib, shlex, zipfile
 from typing import Dict
 
-KOSIT_JAR = os.environ.get("KOSIT_JAR") or "/opt/kosit/bin/validator-1.5.2-standalone.jar"
+# Location of the KoSIT validator jar.  Defaults to the jar placed under the
+# shared /data volume so that it can be updated without rebuilding the image.
+KOSIT_JAR = os.environ.get("KOSIT_JAR") or "/data/kosit/bin/validator-1.5.2-standalone.jar"
 KOSIT_CONF_DIR = os.environ.get("KOSIT_CONF_DIR") or "/data/kosit/bis"
 
 
