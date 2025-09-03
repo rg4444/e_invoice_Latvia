@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>KoSIT Validator (Peppol BIS)</h2>
+
+<p class="muted">Jar: <code>{{ conf.jar }}</code> &nbsp;|&nbsp; Config dir: <code>{{ conf.conf_dir }}</code></p>
+
+<form id="kform">
+  <div class="grid">
+    <label>Invoice XML
+      <select name="invoice_path" id="invoice_path">
+        {% for p in invoices %}
+        <option value="{{ p }}">{{ p }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Generate HTML report (-h)
+      <select name="html_report" id="html_report">
+        <option value="true" selected>Yes</option>
+        <option value="false">No</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="actions">
+    <button type="button" id="run">Validate by KoSIT</button>
+  </div>
+</form>
+
+<h3>Result</h3>
+<pre id="out"></pre>
+
+<style>
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+.actions{display:flex;gap:10px;margin:10px 0}
+.muted{opacity:.75}
+</style>
+
+<script>
+document.getElementById('run').addEventListener('click', async ()=>{
+  const fd = new FormData(document.getElementById('kform'));
+  const res = await fetch('/kosit/validate', { method:'POST', body: fd });
+  const js = await res.json();
+  const lines = [];
+  lines.push("OK: " + js.ok);
+  lines.push("Exit code: " + js.exit_code);
+  lines.push("Took (ms): " + js.took_ms);
+  if (js.xml_report) lines.push("XML report: " + js.xml_report);
+  if (js.html_report) lines.push("HTML report: " + js.html_report);
+  if (js.stdout) lines.push("\nSTDOUT:\n" + js.stdout.trim());
+  if (js.stderr) lines.push("\nSTDERR:\n" + js.stderr.trim());
+  document.getElementById('out').textContent = lines.join("\n");
+});
+</script>
+{% endblock %}
