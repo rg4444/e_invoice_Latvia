@@ -2,6 +2,8 @@
 
 ![Screenshot of the application interface](e_invoice.PNG)
 
+A reference to official guidelines for integrating e-invoices with the Latvija.lv governmental portal can be found in the [e-adrese guidelines](https://viss.gov.lv/lv/Informacijai/Dokumentacija/Vadlinijas/e-adrese).
+
 A minimal **FastAPI** web application to **edit**, **validate**, and **send** e-invoices via **SOAP** with **WS-Security UsernameToken (digest)** and optional **mutual TLS**.
 
 This tool is intended as a **local integration tester** for the Latvian VDAA *e-Rēķini* system.  
