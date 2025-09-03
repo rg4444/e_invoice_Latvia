@@ -477,6 +477,7 @@ java -jar validator-<version>-standalone.jar -s <path>/scenarios.xml -r <repo-di
 
 1. Ensure Java is in the container (`default-jre-headless` installed).  
 2. Provide the **KoSIT validator jar** (e.g. `validator-1.5.2-standalone.jar`) under `/opt/kosit/bin/`. You can:
+   - Run `python tools/fetch_validator.py` to download it automatically, or
    - Download in Dockerfile, or
    - Mount via volume and set `KOSIT_JAR=/opt/kosit/bin/validator-1.5.2-standalone.jar`.
 3. Populate `data/kosit/bis/` with the **Peppol validator configuration** (contains `scenarios.xml` and `resources/**`).  
