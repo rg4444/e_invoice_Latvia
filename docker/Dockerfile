@@ -6,15 +6,8 @@ RUN apt-get update \
       default-jre-headless curl unzip ca-certificates openssl \
  && rm -rf /var/lib/apt/lists/*
 
-# KoSIT validator jar will live here
-ENV KOSIT_HOME=/opt/kosit
-RUN mkdir -p $KOSIT_HOME/bin $KOSIT_HOME/conf
-
-# Optional: download a recent validator jar at build time.
-# (You can also mount it via docker-compose volume.)
-ARG KOSIT_VER=1.5.2
-RUN curl -L -o $KOSIT_HOME/bin/validator-${KOSIT_VER}-standalone.jar \
-    https://github.com/itplr-kosit/validator/releases/download/v${KOSIT_VER}/validator-${KOSIT_VER}-standalone.jar
+# KoSIT validator jar is expected to be provided via the /data volume at runtime
+# (see docker-compose). The image itself does not bundle the validator jar.
 
 # Put Saxon-HE under /opt/saxon
 RUN mkdir -p /opt/saxon

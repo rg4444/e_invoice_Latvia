@@ -12,5 +12,7 @@ services:
       - APP_SECRET=${APP_SECRET}
       - DEFAULT_SCHEMA=${DEFAULT_SCHEMA}
       - DEFAULT_INVOICE=${DEFAULT_INVOICE}
-      - KOSIT_JAR=/opt/kosit/bin/validator-1.5.2-standalone.jar
+      # Validator jar lives under the /data volume so it can be updated
+      # without rebuilding the container image.
+      - KOSIT_JAR=/data/kosit/bin/validator-1.5.2-standalone.jar
       - KOSIT_CONF_DIR=/data/kosit/bis

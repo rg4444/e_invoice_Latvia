@@ -120,7 +120,9 @@ def schematron_validate(invoice_xml: str = Form(...), ruleset_path: str = Form(.
 def kosit_page():
     invoices = _list_invoices()
     conf = {
-        "jar": os.environ.get("KOSIT_JAR", "/opt/kosit/bin/validator-1.5.2-standalone.jar"),
+        # Default jar path points to the shared /data volume so the validator
+        # can be updated without rebuilding the container image.
+        "jar": os.environ.get("KOSIT_JAR", "/data/kosit/bin/validator-1.5.2-standalone.jar"),
         "conf_dir": os.environ.get("KOSIT_CONF_DIR", "/data/kosit/bis")
     }
     return env.get_template("kosit.html").render(invoices=invoices, conf=conf)
