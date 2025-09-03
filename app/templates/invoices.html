@@ -3,6 +3,8 @@
 <h2>Invoices</h2>
 <div class="mb-3">
   <button id="fetchSchemas" class="btn btn-primary">Fetch Schemes</button>
+  <input type="file" id="uploadInput" accept=".xml" style="display:none">
+  <button id="uploadBtn" class="btn btn-secondary">Upload</button>
 </div>
 <table class="table table-striped">
   <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead>
@@ -29,6 +31,21 @@ document.getElementById('fetchSchemas').addEventListener('click', async ()=>{
     alert('Schemas fetched');
   } else {
     alert('Failed: ' + (res.error || ''));
+  }
+});
+document.getElementById('uploadBtn').addEventListener('click', ()=>{
+  document.getElementById('uploadInput').click();
+});
+document.getElementById('uploadInput').addEventListener('change', async ()=>{
+  const fi = document.getElementById('uploadInput');
+  if(!fi.files.length) return;
+  const fd = new FormData();
+  fd.append('file', fi.files[0]);
+  const res = await fetch('/invoice/upload', {method:'POST', body: fd}).then(r=>r.json());
+  if(res.ok){
+    location.reload();
+  } else {
+    alert('Upload failed: ' + (res.error || ''));
   }
 });
 </script>

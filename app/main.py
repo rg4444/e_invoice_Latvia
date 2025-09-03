@@ -1,6 +1,6 @@
 import os, logging, base64, uuid, time, json, subprocess
 from datetime import datetime
-from fastapi import FastAPI, Request, Form, Query
+from fastapi import FastAPI, Request, Form, Query, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -465,6 +465,17 @@ def fetch_schemas():
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+@app.post("/invoice/upload")
+async def invoice_upload(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(".xml"):
+        return JSONResponse({"ok": False, "error": "Only XML files allowed"}, status_code=400)
+    name = os.path.basename(file.filename)
+    dest = os.path.join(INVOICE_DIR, name)
+    content = await file.read()
+    with open(dest, "wb") as f:
+        f.write(content)
+    return JSONResponse({"ok": True, "path": dest})
 
 @app.get("/invoice/download")
 def invoice_download(path: str):
