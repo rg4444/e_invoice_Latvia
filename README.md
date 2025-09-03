@@ -451,3 +451,44 @@ data/schematron/peppol/.xslt
 
 This project is licensed for non-commercial use only. Commercial use requires a separate license. See [LICENSE](LICENSE).
 
+
+## KoSIT Validator (Peppol BIS)
+
+This app integrates the **KoSIT XML Validator** to validate invoices against **Peppol BIS** scenarios (XSD + Schematron combined).
+
+### What is it (legally & technically)?
+
+- **KoSIT** (Koordinierungsstelle für IT-Standards) is the German public body behind the **XRechnung** standard. They publish an open validator which can execute **XSD** and **Schematron** based on a **scenario** configuration. For Peppol BIS, KoSIT provides a dedicated **validator configuration** (scenarios + resources). KoSIT is **authoritative for XRechnung**; for **Peppol BIS**, the authoritative specs live at **OpenPeppol**, while KoSIT’s Peppol package is a convenient runtime configuration of those rules. 
+
+### CLI reference (for troubleshooting)
+
+```
+java -jar validator-<version>-standalone.jar -s <path>/scenarios.xml -r <repo-dir> -h -o <outdir> <invoice.xml>
+```
+
+- `-s` scenario config file  
+- `-r` repository folder (contains `scenarios.xml` and `resources/`)  
+- `-o` output directory  
+- `-h` also produce HTML report  
+- Since **v1.5.1** jar is named `validator-<ver>-standalone.jar`.   
+- Typical usage writes `*-report.xml` and (with `-h`) `*-report.html`. 
+
+### Setup
+
+1. Ensure Java is in the container (`default-jre-headless` installed).  
+2. Provide the **KoSIT validator jar** (e.g. `validator-1.5.2-standalone.jar`) under `/opt/kosit/bin/`. You can:
+   - Download in Dockerfile, or
+   - Mount via volume and set `KOSIT_JAR=/opt/kosit/bin/validator-1.5.2-standalone.jar`.
+3. Populate `data/kosit/bis/` with the **Peppol validator configuration** (contains `scenarios.xml` and `resources/**`).  
+   - Point `KOSIT_CONF_DIR` to that folder if you change the path.
+
+### Using in the GUI
+
+- Open **KoSIT Validator** tab.  
+- Pick an **invoice** (from `/data/invoices`).  
+- Click **Validate by KoSIT**.  
+- The app runs the validator and shows:
+  - Status, exit code, and runtime  
+  - Paths to **XML** and **HTML** reports under `/data/logs/kosit/<timestamp>/`
+
+> Tip: Keep your **XSD** and **Schematron (Saxon)** checks in the **Invoice** tab for developer-friendly iteration. Use **KoSIT** for a Peppol-aligned final check and HTML report.

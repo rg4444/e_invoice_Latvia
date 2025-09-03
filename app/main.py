@@ -32,6 +32,7 @@ from utils_attachments import read_file_b64, new_content_id
 from soap_client import send_invoice, send_raw_envelope
 from lxml import etree
 from schematron import run_schematron_xslt
+from kosit_runner import run_kosit
 
 INVOICE_DIR = "/data/invoices"
 SAMPLES_DIR = "/data/samples"
@@ -42,7 +43,9 @@ os.makedirs(INVOICE_DIR, exist_ok=True)
 
 load_dotenv()
 LOG_DIR = "/data/logs"
+KOSIT_OUT_BASE = "/data/logs/kosit"
 os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs(KOSIT_OUT_BASE, exist_ok=True)
 logging.basicConfig(
     filename=os.path.join(LOG_DIR, "app.log"),
     level=logging.INFO,
@@ -98,6 +101,11 @@ def _list_rulesets():
     return sorted(xslt)
 
 
+def _list_invoices():
+    if not os.path.isdir(INVOICE_DIR):
+        return []
+    return sorted([os.path.join(INVOICE_DIR, f) for f in os.listdir(INVOICE_DIR) if f.lower().endswith(".xml")])
+
 @app.get("/schematron/list")
 def schematron_list():
     return JSONResponse({"ok": True, "rulesets": _list_rulesets()})
@@ -107,6 +115,23 @@ def schematron_list():
 def schematron_validate(invoice_xml: str = Form(...), ruleset_path: str = Form(...)):
     ok, svrl, issues = run_schematron_xslt(invoice_xml, ruleset_path)
     return JSONResponse({"ok": ok, "issues": issues, "svrl": svrl})
+
+@app.get("/kosit", response_class=HTMLResponse)
+def kosit_page():
+    invoices = _list_invoices()
+    conf = {
+        "jar": os.environ.get("KOSIT_JAR", "/opt/kosit/bin/validator-1.5.2-standalone.jar"),
+        "conf_dir": os.environ.get("KOSIT_CONF_DIR", "/data/kosit/bis")
+    }
+    return env.get_template("kosit.html").render(invoices=invoices, conf=conf)
+
+@app.post("/kosit/validate")
+def kosit_validate(invoice_path: str = Form(...), html_report: str = Form("true")):
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    out_dir = os.path.join(KOSIT_OUT_BASE, ts)
+    res = run_kosit(invoice_path, out_dir, html_report.lower() == "true")
+    return JSONResponse(res)
+
 
 
 def _log_div_call(operation: str, req_xml: str, resp_xml: str, took_ms: int, cfg: dict):
