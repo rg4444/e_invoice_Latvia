@@ -1,4 +1,4 @@
-import os, subprocess, time, pathlib, shlex
+import os, subprocess, time, pathlib, shlex, zipfile
 from typing import Dict
 
 KOSIT_JAR = os.environ.get("KOSIT_JAR") or "/opt/kosit/bin/validator-1.5.2-standalone.jar"
@@ -14,6 +14,8 @@ def run_kosit(invoice_path: str, out_dir: str, html_report: bool = True) -> Dict
 
     if not os.path.exists(KOSIT_JAR):
         return {"ok": False, "error": f"KoSIT jar not found: {KOSIT_JAR}"}
+    if not zipfile.is_zipfile(KOSIT_JAR):
+        return {"ok": False, "error": f"KoSIT jar is corrupt: {KOSIT_JAR}. Re-download using tools/fetch_validator.py"}
     if not os.path.exists(scenarios):
         return {"ok": False, "error": f"scenarios.xml not found at: {scenarios}"}
     if not os.path.exists(invoice_path):
