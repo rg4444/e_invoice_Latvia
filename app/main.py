@@ -11,7 +11,7 @@ from requests import Session
 import requests
 
 from storage import load_config, save_config
-from ubl import read_reference_invoice, build_invoice_xml
+from ubl import read_reference_invoice, build_invoice_xml, parse_invoice_to_form
 from wsdl_utils import http_get, try_parse_wsdl, curl_fetch_wsdl
 from wsdl_body import build_body_template
 from tools import (
@@ -472,12 +472,9 @@ def fetch_schemas():
 async def invoice_upload(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".xml"):
         return JSONResponse({"ok": False, "error": "Only XML files allowed"}, status_code=400)
-    name = os.path.basename(file.filename)
-    dest = os.path.join(INVOICE_DIR, name)
     content = await file.read()
-    with open(dest, "wb") as f:
-        f.write(content)
-    return JSONResponse({"ok": True, "path": dest})
+    data = parse_invoice_to_form(content)
+    return JSONResponse({"ok": True, "form": data, "filename": file.filename})
 
 @app.get("/invoice/download")
 def invoice_download(path: str):
