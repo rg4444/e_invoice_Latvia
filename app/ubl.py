@@ -97,7 +97,12 @@ def parse_invoice_to_form(xml_bytes: bytes) -> Dict[str, Any]:
 
 def read_reference_invoice(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
-        return {}
+        minimal_invoice = (
+            b"<Invoice xmlns='urn:oasis:names:specification:ubl:schema:xsd:Invoice-2' "
+            b"xmlns:cac='urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2' "
+            b"xmlns:cbc='urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2'></Invoice>"
+        )
+        return parse_invoice_to_form(minimal_invoice)
     with open(path, "rb") as f:
         return parse_invoice_to_form(f.read())
 
