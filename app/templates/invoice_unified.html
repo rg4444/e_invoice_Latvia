@@ -4,69 +4,92 @@
 
 <p class="muted">Reference prefill: <code>{{ ref_path }}</code></p>
 
+<h3>Upload & Import XML</h3>
+<input type="file" id="xmlUpload" accept=".xml">
+<button type="button" id="doImport">Upload & Import</button>
+
 <form id="invForm">
   <fieldset>
     <legend>Header</legend>
     <div class="grid">
-      <label>Invoice ID <input name="id" value="{{ prefill.id }}" class="form-control"></label>
-      <label>Issue Date <input name="issue_date" value="{{ prefill.issue_date }}" class="form-control"></label>
-      <label>Due Date <input name="due_date" value="{{ prefill.due_date }}" class="form-control"></label>
-      <label>Type Code <input name="type_code" value="{{ prefill.type_code or '380' }}" class="form-control"></label>
-      <label>Currency <input name="currency" value="{{ prefill.currency or 'EUR' }}" class="form-control"></label>
+      <label>CustomizationID <input name="header.customization_id" value="{{ prefill.header.customization_id }}" class="form-control"></label>
+      <label>ProfileID <input name="header.profile_id" value="{{ prefill.header.profile_id }}" class="form-control"></label>
+      <label>Invoice ID <input name="header.id" value="{{ prefill.header.id }}" class="form-control"></label>
+      <label>IssueDate <input name="header.issue_date" value="{{ prefill.header.issue_date }}" class="form-control"></label>
+      <label>DueDate <input name="header.due_date" value="{{ prefill.header.due_date }}" class="form-control"></label>
+      <label>TypeCode <input name="header.type_code" value="{{ prefill.header.type_code or '380' }}" class="form-control"></label>
+      <label>Note <input name="header.note" value="{{ prefill.header.note }}" class="form-control"></label>
+      <label>Currency <input name="header.currency" value="{{ prefill.header.currency or 'EUR' }}" class="form-control"></label>
+      <label>BuyerReference <input name="header.buyer_reference" value="{{ prefill.header.buyer_reference }}" class="form-control"></label>
+      <label>Contract ID <input name="header.contract_id" value="{{ prefill.header.contract_id }}" class="form-control"></label>
     </div>
   </fieldset>
 
   <fieldset>
     <legend>Supplier</legend>
     <div class="grid">
-      <label>Name <input name="supplier_name" value="{{ prefill.supplier_name }}" class="form-control"></label>
-      <label>Company ID <input name="supplier_company_id" value="{{ prefill.supplier_company_id }}" class="form-control"></label>
-      <label>VAT Number <input name="supplier_vat" value="{{ prefill.supplier_vat }}" class="form-control"></label>
+      <label>EndpointID <input name="supplier.endpoint_id" value="{{ prefill.supplier.endpoint_id }}" class="form-control"></label>
+      <label>Scheme <input name="supplier.endpoint_scheme" value="{{ prefill.supplier.endpoint_scheme }}" class="form-control"></label>
+      <label>Party ID <input name="supplier.party_id" value="{{ prefill.supplier.party_id }}" class="form-control"></label>
+      <label>Name <input name="supplier.name" value="{{ prefill.supplier.name }}" class="form-control"></label>
+      <label>Address line <input name="supplier.address_line" value="{{ prefill.supplier.address_line }}" class="form-control"></label>
+      <label>Country <input name="supplier.country_code" value="{{ prefill.supplier.country_code }}" class="form-control"></label>
+      <label>Tax reg. name <input name="supplier.tax_reg_name" value="{{ prefill.supplier.tax_reg_name }}" class="form-control"></label>
+      <label>Tax company ID <input name="supplier.tax_company_id" value="{{ prefill.supplier.tax_company_id }}" class="form-control"></label>
+      <label>Tax scheme ID <input name="supplier.tax_scheme_id" value="{{ prefill.supplier.tax_scheme_id }}" class="form-control"></label>
+      <label>Legal name <input name="supplier.legal_name" value="{{ prefill.supplier.legal_name }}" class="form-control"></label>
+      <label>Legal company ID <input name="supplier.legal_company_id" value="{{ prefill.supplier.legal_company_id }}" class="form-control"></label>
     </div>
   </fieldset>
 
   <fieldset>
     <legend>Customer</legend>
     <div class="grid">
-      <label>Name <input name="customer_name" value="{{ prefill.customer_name }}" class="form-control"></label>
-      <label>Company ID <input name="customer_company_id" value="{{ prefill.customer_company_id }}" class="form-control"></label>
-      <label>VAT Number <input name="customer_vat" value="{{ prefill.customer_vat }}" class="form-control"></label>
+      <label>EndpointID <input name="customer.endpoint_id" value="{{ prefill.customer.endpoint_id }}" class="form-control"></label>
+      <label>Scheme <input name="customer.endpoint_scheme" value="{{ prefill.customer.endpoint_scheme }}" class="form-control"></label>
+      <label>Party ID <input name="customer.party_id" value="{{ prefill.customer.party_id }}" class="form-control"></label>
+      <label>Name <input name="customer.name" value="{{ prefill.customer.name }}" class="form-control"></label>
+      <label>Address line <input name="customer.address_line" value="{{ prefill.customer.address_line }}" class="form-control"></label>
+      <label>Country <input name="customer.country_code" value="{{ prefill.customer.country_code }}" class="form-control"></label>
+      <label>Tax reg. name <input name="customer.tax_reg_name" value="{{ prefill.customer.tax_reg_name }}" class="form-control"></label>
+      <label>Tax company ID <input name="customer.tax_company_id" value="{{ prefill.customer.tax_company_id }}" class="form-control"></label>
+      <label>Tax scheme ID <input name="customer.tax_scheme_id" value="{{ prefill.customer.tax_scheme_id }}" class="form-control"></label>
+      <label>Legal name <input name="customer.legal_name" value="{{ prefill.customer.legal_name }}" class="form-control"></label>
+      <label>Legal company ID <input name="customer.legal_company_id" value="{{ prefill.customer.legal_company_id }}" class="form-control"></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Payment</legend>
+    <div class="grid">
+      <label>PaymentMeansCode <input name="payment.means_code" value="{{ prefill.payment.means_code }}" class="form-control"></label>
+      <label>IBAN <input name="payment.iban" value="{{ prefill.payment.iban }}" class="form-control"></label>
+      <label>BIC <input name="payment.bic" value="{{ prefill.payment.bic }}" class="form-control"></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tax & Totals</legend>
+    <div class="grid">
+      <label>TaxTotal Amount <input name="tax.total_amount" value="{{ prefill.tax.total_amount }}" class="form-control"></label>
+      <label>Taxable Amount <input name="tax.subtotal_taxable" value="{{ prefill.tax.subtotal_taxable }}" class="form-control"></label>
+      <label>Tax Amount <input name="tax.subtotal_tax" value="{{ prefill.tax.subtotal_tax }}" class="form-control"></label>
+      <label>TaxCategory ID <input name="tax.category_id" value="{{ prefill.tax.category_id }}" class="form-control"></label>
+      <label>TaxCategory Name <input name="tax.category_name" value="{{ prefill.tax.category_name }}" class="form-control"></label>
+      <label>TaxCategory Percent <input name="tax.category_percent" value="{{ prefill.tax.category_percent }}" class="form-control"></label>
+      <label>TaxScheme ID <input name="tax.category_scheme" value="{{ prefill.tax.category_scheme }}" class="form-control"></label>
+      <label>LineExtensionAmount <input name="totals.line_ext" value="{{ prefill.totals.line_ext }}" class="form-control"></label>
+      <label>TaxExclusiveAmount <input name="totals.tax_excl" value="{{ prefill.totals.tax_excl }}" class="form-control"></label>
+      <label>TaxInclusiveAmount <input name="totals.tax_incl" value="{{ prefill.totals.tax_incl }}" class="form-control"></label>
+      <label>PrepaidAmount <input name="totals.prepaid" value="{{ prefill.totals.prepaid }}" class="form-control"></label>
+      <label>PayableAmount <input name="totals.payable" value="{{ prefill.totals.payable }}" class="form-control"></label>
     </div>
   </fieldset>
 
   <fieldset id="linesBox">
     <legend>Lines</legend>
-    <div id="lines">
-      {% for ln in prefill.lines %}
-      <div class="line">
-        <label>Line ID <input name="lines[{{ loop.index0 }}][id]" value="{{ ln.id }}" class="form-control"></label>
-        <label>Name <input name="lines[{{ loop.index0 }}][name]" value="{{ ln.name }}" class="form-control"></label>
-        <label>Qty <input name="lines[{{ loop.index0 }}][qty]" value="{{ ln.qty }}" class="form-control"></label>
-        <label>Price <input name="lines[{{ loop.index0 }}][price]" value="{{ ln.price }}" class="form-control"></label>
-        <label>Line Ext. <input name="lines[{{ loop.index0 }}][line_ext]" value="{{ ln.line_ext }}" class="form-control"></label>
-        <button type="button" class="btn btn-danger btn-sm rm">Remove</button>
-      </div>
-      {% endfor %}
-      {% if prefill.lines|length == 0 %}
-      <div class="line">
-        <label>Line ID <input name="lines[0][id]" value="1" class="form-control"></label>
-        <label>Name <input name="lines[0][name]" value="Service" class="form-control"></label>
-        <label>Qty <input name="lines[0][qty]" value="1" class="form-control"></label>
-        <label>Price <input name="lines[0][price]" value="100.00" class="form-control"></label>
-        <label>Line Ext. <input name="lines[0][line_ext]" value="100.00" class="form-control"></label>
-        <button type="button" class="btn btn-danger btn-sm rm">Remove</button>
-      </div>
-      {% endif %}
-    </div>
+    <div id="lines"></div>
     <button type="button" id="addLine" class="btn btn-secondary">Add line</button>
-  </fieldset>
-
-  <fieldset>
-    <legend>Totals</legend>
-    <div class="grid">
-      <label>Tax Amount <input name="tax_amount" value="{{ prefill.tax_amount }}" class="form-control"></label>
-      <label>Payable Amount <input name="payable_amount" value="{{ prefill.payable_amount or '100.00' }}" class="form-control"></label>
-    </div>
   </fieldset>
 
   <div class="grid">
@@ -101,7 +124,6 @@
 <div class="grid">
   <label>Ruleset (compiled XSLT)
     <select id="sch">
-      <!-- Codex: populate at page load -->
     </select>
   </label>
 </div>
@@ -118,45 +140,96 @@
 </style>
 
 <script>
+function buildLine(idx, ln){
+  const wrapper = document.createElement('div');
+  wrapper.className = 'line';
+  wrapper.innerHTML = `
+    <label>ID <input name="lines[${idx}][id]" value="${ln.id||''}" class="form-control"></label>
+    <label>Name <input name="lines[${idx}][item_name]" value="${ln.item_name||''}" class="form-control"></label>
+    <label>Qty <input name="lines[${idx}][qty]" value="${ln.qty||''}" class="form-control" style="width:80px">
+      <input name="lines[${idx}][unit_code]" value="${ln.unit_code||''}" class="form-control" style="width:60px"></label>
+    <label>Price <input name="lines[${idx}][price_amount]" value="${ln.price_amount||''}" class="form-control" style="width:90px">
+      <input name="lines[${idx}][price_currency]" value="${ln.price_currency||''}" class="form-control" style="width:60px"></label>
+    <label>BaseQty <input name="lines[${idx}][base_qty]" value="${ln.base_qty||''}" class="form-control"></label>
+    <label>LineExt <input name="lines[${idx}][line_ext]" value="${ln.line_ext||''}" class="form-control"></label>
+    <label>AllowInd <input name="lines[${idx}][allow_charge_indicator]" value="${ln.allow_charge_indicator||''}" class="form-control"></label>
+    <label>AllowReason <input name="lines[${idx}][allow_reason]" value="${ln.allow_reason||''}" class="form-control"></label>
+    <label>AllowAmount <input name="lines[${idx}][allow_amount]" value="${ln.allow_amount||''}" class="form-control"></label>
+    <label>Tax ID <input name="lines[${idx}][tax_id]" value="${ln.tax_id||''}" class="form-control"></label>
+    <label>Tax % <input name="lines[${idx}][tax_percent]" value="${ln.tax_percent||''}" class="form-control"></label>
+    <label>Tax Scheme <input name="lines[${idx}][tax_scheme]" value="${ln.tax_scheme||''}" class="form-control"></label>
+    <button type="button" class="btn btn-danger btn-sm rm">Remove</button>
+  `;
+  wrapper.querySelector('.rm').addEventListener('click', ()=> wrapper.remove());
+  return wrapper;
+}
+
 function formToJSON(form){
   const fd = new FormData(form);
-  const obj = { lines: [] };
-  ['id','issue_date','due_date','type_code','currency',
-   'supplier_name','supplier_company_id','supplier_vat',
-   'customer_name','customer_company_id','customer_vat',
-   'tax_amount','payable_amount','filename'
-  ].forEach(k => obj[k] = fd.get(k) || "");
+  const obj = {header:{}, supplier:{}, customer:{}, payment:{}, tax:{}, totals:{}, lines:[]};
   const lines = {};
-  for (const [k,v] of fd.entries()){
-    const m = k.match(/^lines\[(\d+)\]\[(\w+)\]$/);
-    if (m) {
-      const idx = parseInt(m[1],10);
-      const key = m[2];
-      lines[idx] = lines[idx] || {};
-      lines[idx][key] = v;
+  for(const [k,v] of fd.entries()){
+    if(k.startsWith('lines[')){
+      const m = k.match(/^lines\[(\d+)\]\[(\w+)\]$/);
+      if(m){
+        const idx = parseInt(m[1],10);
+        lines[idx] = lines[idx] || {};
+        lines[idx][m[2]] = v;
+      }
+    } else if(k === 'filename'){
+      obj.filename = v;
+    } else {
+      const [grp, field] = k.split('.');
+      if(field){ obj[grp][field] = v; }
     }
   }
-  obj.lines = Object.keys(lines).sort((a,b)=>a-b).map(i => lines[i]);
+  obj.lines = Object.keys(lines).sort((a,b)=>a-b).map(i=>lines[i]);
   return obj;
 }
+
+function setFormFromJSON(data){
+  for(const [grp, fields] of Object.entries(data)){
+    if(grp === 'lines') continue;
+    for(const [k,v] of Object.entries(fields)){
+      const inp = document.querySelector(`[name="${grp}.${k}"]`);
+      if(inp) inp.value = v || '';
+    }
+  }
+  const linesDiv = document.getElementById('lines');
+  linesDiv.innerHTML = '';
+  (data.lines||[]).forEach((ln, idx)=>{
+    linesDiv.appendChild(buildLine(idx, ln));
+  });
+  if((data.lines||[]).length === 0){
+    linesDiv.appendChild(buildLine(0, {}));
+  }
+}
+
+setFormFromJSON({
+  header: {{ prefill.header|tojson }},
+  supplier: {{ prefill.supplier|tojson }},
+  customer: {{ prefill.customer|tojson }},
+  payment: {{ prefill.payment|tojson }},
+  tax: {{ prefill.tax|tojson }},
+  totals: {{ prefill.totals|tojson }},
+  lines: {{ prefill.lines|tojson }}
+});
 
 document.getElementById('addLine').addEventListener('click', ()=>{
   const linesDiv = document.getElementById('lines');
   const idx = linesDiv.querySelectorAll('.line').length;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'line';
-  wrapper.innerHTML = `
-    <label>Line ID <input name="lines[${idx}][id]" value="${idx+1}" class="form-control"></label>
-    <label>Name <input name="lines[${idx}][name]" value="" class="form-control"></label>
-    <label>Qty <input name="lines[${idx}][qty]" value="1" class="form-control"></label>
-    <label>Price <input name="lines[${idx}][price]" value="0.00" class="form-control"></label>
-    <label>Line Ext. <input name="lines[${idx}][line_ext]" value="0.00" class="form-control"></label>
-    <button type="button" class="btn btn-danger btn-sm rm">Remove</button>
-  `;
-  linesDiv.appendChild(wrapper);
-  wrapper.querySelector('.rm').addEventListener('click', ()=> wrapper.remove());
+  linesDiv.appendChild(buildLine(idx, {}));
 });
-Array.from(document.querySelectorAll('.line .rm')).forEach(btn => btn.addEventListener('click', ()=> btn.closest('.line').remove()));
+
+document.getElementById('doImport').addEventListener('click', async ()=>{
+  const f = document.getElementById('xmlUpload').files[0];
+  if(!f){ alert('Choose an XML first.'); return; }
+  const fd = new FormData(); fd.append('file', f);
+  const r = await fetch('/invoice/upload', { method:'POST', body: fd });
+  const js = await r.json();
+  if(!js.ok){ alert('Import failed'); return; }
+  setFormFromJSON(js.form);
+});
 
 async function doGenerate(save){
   const data = formToJSON(document.getElementById('invForm'));
@@ -168,9 +241,9 @@ async function doGenerate(save){
   const js = await res.json();
   if (js.ok){
     document.getElementById('xml').value = js.xml || '';
-    if (js.saved_to) alert("Saved to: " + js.saved_to);
+    if (js.saved_to) alert('Saved to: ' + js.saved_to);
   } else {
-    alert("Generation failed: " + (js.error || ''));
+    alert('Generation failed: ' + (js.error || ''));
   }
 }
 document.getElementById('gen').addEventListener('click', ()=> doGenerate(false));
@@ -187,7 +260,6 @@ document.getElementById('validate').addEventListener('click', async ()=>{
   document.getElementById('valout').textContent = JSON.stringify(js, null, 2);
 });
 
-// populate ruleset dropdown
 (async function(){
   try {
     const r = await fetch('/schematron/list');
@@ -198,19 +270,18 @@ document.getElementById('validate').addEventListener('click', async ()=>{
       opt.value = p; opt.textContent = p;
       sel.appendChild(opt);
     });
-  } catch(e) { console.warn(e); }
+  } catch(e){}
 })();
 
 document.getElementById('sch_validate').addEventListener('click', async ()=>{
-  const xml = document.getElementById('xml').value;
-  const sch = document.getElementById('sch').value;
+  const invoice_xml = document.getElementById('xml').value;
+  const ruleset_path = document.getElementById('sch').value;
   const fd = new FormData();
-  fd.append('invoice_xml', xml);
-  fd.append('ruleset_path', sch);
+  fd.append('invoice_xml', invoice_xml);
+  fd.append('ruleset_path', ruleset_path);
   const res = await fetch('/schematron/validate', { method:'POST', body: fd });
   const js = await res.json();
-  const summary = (js.ok ? "OK" : "FAILED") + " — " + (js.issues||[]).length + " messages";
-  document.getElementById('schout').textContent = summary + "\n\n" + (js.issues||[]).join("\n");
+  document.getElementById('schout').textContent = JSON.stringify(js, null, 2);
 });
 </script>
 {% endblock %}
