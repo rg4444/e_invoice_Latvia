@@ -70,8 +70,8 @@ def load_defaults():
     if DEFAULT_INVOICE and os.path.isfile(DEFAULT_INVOICE):
         INVOICE_XML = open(DEFAULT_INVOICE, "r", encoding="utf-8").read()
 
-def render(tpl, **ctx):
-    return HTMLResponse(env.get_template(tpl).render(**ctx))
+def render(tpl, request: Request, **ctx):
+    return HTMLResponse(env.get_template(tpl).render(request=request, **ctx))
 
 
 def _list_xsd_entrypoints():
@@ -117,7 +117,7 @@ def schematron_validate(invoice_xml: str = Form(...), ruleset_path: str = Form(.
     return JSONResponse({"ok": ok, "issues": issues, "svrl": svrl})
 
 @app.get("/kosit", response_class=HTMLResponse)
-def kosit_page():
+def kosit_page(request: Request):
     invoices = _list_invoices()
     conf = {
         # Default jar path points to the shared /data volume so the validator
@@ -125,7 +125,7 @@ def kosit_page():
         "jar": os.environ.get("KOSIT_JAR", "/data/kosit/bin/validator-1.5.2-standalone.jar"),
         "conf_dir": os.environ.get("KOSIT_CONF_DIR", "/data/kosit/bis")
     }
-    return env.get_template("kosit.html").render(invoices=invoices, conf=conf)
+    return render("kosit.html", request, invoices=invoices, conf=conf)
 
 @app.post("/kosit/validate")
 def kosit_validate(invoice_path: str = Form(...), html_report: str = Form("true")):
@@ -185,7 +185,7 @@ def _op_namespace(op, client):
 
 
 @app.get("/cert", response_class=HTMLResponse)
-def certgen_page():
+def certgen_page(request: Request):
     defaults = {
         "out_dir": "/data/certs",
         "base_name": "client",
@@ -199,7 +199,7 @@ def certgen_page():
         "bits": 2048,
         "key_passphrase": "",
     }
-    return env.get_template("certgen.html").render(defaults=defaults)
+    return render("certgen.html", request, defaults=defaults)
 
 
 @app.post("/cert/generate")
@@ -240,9 +240,9 @@ def cert_download(path: str = Query(...)):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
 @app.get("/", response_class=HTMLResponse)
-def home():
+def home(request: Request):
     cfg = load_config()
-    return render("config.html", cfg=cfg)
+    return render("config.html", request, cfg=cfg)
 
 @app.post("/save-config")
 def save_config_route(
@@ -403,12 +403,12 @@ async def tools_verify():
     return JSONResponse(res)
 
 @app.get("/invoice", response_class=HTMLResponse)
-def invoice_unified_page():
+def invoice_unified_page(request: Request):
     cfg = load_config()
     ref_path = os.getenv("DEFAULT_INVOICE", os.path.join(SAMPLES_DIR, "einvoice_reference.xml"))
     ref = read_reference_invoice(ref_path)
     xsds = _list_xsd_entrypoints()
-    return env.get_template("invoice_unified.html").render(prefill=ref, xsds=xsds, cfg=cfg, ref_path=ref_path)
+    return render("invoice_unified.html", request, prefill=ref, xsds=xsds, cfg=cfg, ref_path=ref_path)
 
 @app.post("/invoice/generate")
 def invoice_generate(payload: str = Form(...), save: str = Form("true"), filename: str = Form("")):
@@ -443,7 +443,7 @@ def invoice_validate(xml_text: str = Form(...), xsd_path: str = Form(...)):
         return JSONResponse({"ok": False, "stage": "xsd-load", "error": str(e)}, status_code=400)
 
 @app.get("/invoices", response_class=HTMLResponse)
-def invoices_page():
+def invoices_page(request: Request):
     files = []
     if os.path.isdir(INVOICE_DIR):
         for fn in sorted(os.listdir(INVOICE_DIR)):
@@ -456,7 +456,7 @@ def invoices_page():
                     "size": stat.st_size,
                     "mtime": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
                 })
-    return env.get_template("invoices.html").render(files=files)
+    return render("invoices.html", request, files=files)
 
 
 @app.post("/fetch-schemas")
@@ -493,8 +493,8 @@ async def invoice_set(request: Request):
 
 
 @app.get("/wsdlui", response_class=HTMLResponse)
-def wsdl_ui():
-    return env.get_template("wsdlui.html").render(cfg=load_config())
+def wsdl_ui(request: Request):
+    return render("wsdlui.html", request, cfg=load_config())
 
 
 @app.post("/wsdl/load")
@@ -722,12 +722,12 @@ def validate_route():
     return JSONResponse({"ok": ok, "issues": issues})
 
 @app.get("/send", response_class=HTMLResponse)
-def send_page():
+def send_page(request: Request):
     cfg = load_config()
     samples = []
     if os.path.isdir("/data/samples"):
         samples = [os.path.join("/data/samples", f) for f in os.listdir("/data/samples")]
-    return render("send.html", cfg=cfg, xml=INVOICE_XML, samples=samples)
+    return render("send.html", request, cfg=cfg, xml=INVOICE_XML, samples=samples)
 
 @app.post("/send")
 def send_route():
