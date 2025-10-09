@@ -31,7 +31,7 @@ from validation import validate_xsd
 from utils_attachments import read_file_b64, new_content_id
 from soap_client import send_invoice, send_raw_envelope
 from lxml import etree
-from schematron import run_schematron_xslt
+from schematron import run_schematron
 from kosit_runner import run_kosit
 
 INVOICE_DIR = "/data/invoices"
@@ -113,19 +113,25 @@ def _is_svrl_stylesheet(path: str) -> bool:
 
 
 def _list_rulesets():
-    # pick xslt files under data/schematron**
+    # pick schematron files under data/schematron**
     xslt = []
     fallback = []
+    schematron_sources = []
     for root, _, files in os.walk(SCHEMATRON_DIR):
         for f in files:
-            if f.lower().endswith((".xsl", ".xslt")):
-                path = os.path.join(root, f)
+            lower = f.lower()
+            path = os.path.join(root, f)
+            if lower.endswith((".xsl", ".xslt")):
                 if _is_svrl_stylesheet(path):
                     xslt.append(path)
                 else:
                     fallback.append(path)
+            elif lower.endswith(".sch"):
+                schematron_sources.append(path)
     if xslt:
-        return sorted(xslt)
+        return sorted(xslt) + sorted(schematron_sources)
+    if schematron_sources:
+        return sorted(schematron_sources) + sorted(fallback)
     return sorted(fallback)
 
 
@@ -174,7 +180,7 @@ async def schematron_validate(
     if not xml_text:
         raise HTTPException(status_code=400, detail="No invoice XML provided")
 
-    ok, svrl, issues = run_schematron_xslt(xml_text, ruleset_path)
+    ok, svrl, issues = run_schematron(xml_text, ruleset_path)
     return JSONResponse({"ok": ok, "issues": issues, "svrl": svrl})
 
 @app.get("/kosit", response_class=HTMLResponse)
