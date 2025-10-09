@@ -158,6 +158,7 @@ async def schematron_validate(
     invoice_file: UploadFile | None = File(None),
 ):
     xml_text = None
+    invoice_label = "Editor XML"
 
     if invoice_xml:
         xml_text = invoice_xml
@@ -170,18 +171,41 @@ async def schematron_validate(
             raise HTTPException(status_code=404, detail="Invoice file not found")
         with open(abs_path, "r", encoding="utf-8") as f:
             xml_text = f.read()
+        invoice_label = os.path.basename(abs_path) or "Selected invoice"
     elif invoice_file is not None:
         try:
             xml_bytes = await invoice_file.read()
             xml_text = xml_bytes.decode("utf-8")
         except UnicodeDecodeError as exc:
             raise HTTPException(status_code=400, detail=f"Invalid XML encoding: {exc}")
+        invoice_label = invoice_file.filename or "Uploaded invoice"
 
     if not xml_text:
         raise HTTPException(status_code=400, detail="No invoice XML provided")
 
     ok, svrl, issues = run_schematron(xml_text, ruleset_path)
-    return JSONResponse({"ok": ok, "issues": issues, "svrl": svrl})
+    ruleset_label = os.path.basename(ruleset_path) or "Selected ruleset"
+
+    payload: dict[str, object] = {"ok": ok, "issues": issues, "svrl": svrl, "invoice_name": invoice_label, "ruleset_name": ruleset_label}
+
+    if not ok:
+        readable_issues = issues or ["No additional details were provided."]
+        header = (
+            f"Schematron rules validation failed while checking {invoice_label} "
+            f"against schema {ruleset_label}."
+        )
+        lines = [header, "", "Following error(s) appear:"] + [f"- {item}" for item in readable_issues]
+        lines.extend(["", "----- Invoice Content -----", xml_text])
+        report_text = "\n".join(lines)
+        payload["report"] = {
+            "header": header,
+            "errors": readable_issues,
+            "invoice_content": xml_text,
+            "text": report_text,
+            "filename": f"schematron-report-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt",
+        }
+
+    return JSONResponse(payload)
 
 @app.get("/kosit", response_class=HTMLResponse)
 def kosit_page(request: Request):
