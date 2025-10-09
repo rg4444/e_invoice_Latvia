@@ -1,6 +1,6 @@
 import os, logging, base64, uuid, time, json, subprocess
 from datetime import datetime
-from fastapi import FastAPI, Request, Form, Query, UploadFile, File
+from fastapi import FastAPI, Request, Form, Query, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -111,9 +111,42 @@ def schematron_list():
     return JSONResponse({"ok": True, "rulesets": _list_rulesets()})
 
 
+@app.get("/schematron/invoices")
+def schematron_invoices():
+    return JSONResponse({"ok": True, "invoices": _list_invoices()})
+
+
 @app.post("/schematron/validate")
-def schematron_validate(invoice_xml: str = Form(...), ruleset_path: str = Form(...)):
-    ok, svrl, issues = run_schematron_xslt(invoice_xml, ruleset_path)
+async def schematron_validate(
+    ruleset_path: str = Form(...),
+    invoice_xml: str | None = Form(None),
+    invoice_path: str | None = Form(None),
+    invoice_file: UploadFile | None = File(None),
+):
+    xml_text = None
+
+    if invoice_xml:
+        xml_text = invoice_xml
+    elif invoice_path:
+        abs_dir = os.path.abspath(INVOICE_DIR)
+        abs_path = os.path.abspath(invoice_path)
+        if not abs_path.startswith(abs_dir + os.sep) and abs_path != abs_dir:
+            raise HTTPException(status_code=400, detail="Invoice path outside invoices directory")
+        if not os.path.isfile(abs_path):
+            raise HTTPException(status_code=404, detail="Invoice file not found")
+        with open(abs_path, "r", encoding="utf-8") as f:
+            xml_text = f.read()
+    elif invoice_file is not None:
+        try:
+            xml_bytes = await invoice_file.read()
+            xml_text = xml_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid XML encoding: {exc}")
+
+    if not xml_text:
+        raise HTTPException(status_code=400, detail="No invoice XML provided")
+
+    ok, svrl, issues = run_schematron_xslt(xml_text, ruleset_path)
     return JSONResponse({"ok": ok, "issues": issues, "svrl": svrl})
 
 @app.get("/kosit", response_class=HTMLResponse)
