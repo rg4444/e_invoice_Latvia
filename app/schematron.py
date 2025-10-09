@@ -54,6 +54,14 @@ def run_schematron_xslt(invoice_xml_text: str, xslt_path: str):
     try:
         doc = etree.fromstring(svrl.encode("utf-8"))
     except Exception as e:
+        # Some stylesheets (e.g. Peppol's HTML invoice viewer) generate HTML
+        # instead of SVRL.  Provide a clearer error message when that happens
+        # so users understand they selected the wrong ruleset.
+        if "<html" in svrl.lower():
+            return False, svrl, [
+                "Selected stylesheet does not produce SVRL output (looks like HTML preview). "
+                "Please choose a compiled Schematron ruleset."
+            ]
         return False, svrl, [f"SVRL parse error: {e}"]
     fails = doc.xpath("//svrl:failed-assert", namespaces=SVRL_NS)
     warns = doc.xpath("//svrl:successful-report", namespaces=SVRL_NS)  # optional: some rule sets use this for warnings
