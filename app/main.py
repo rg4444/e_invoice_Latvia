@@ -104,7 +104,8 @@ def _is_svrl_stylesheet(path: str) -> bool:
     if "http://purl.oclc.org/dsdl/svrl" in snippet:
         return True
 
-    # Some viewers declare HTML output, so explicitly exclude those.
+    # Some viewers declare HTML output, so explicitly exclude those when we
+    # have a better option available.
     if "<xsl:output" in snippet and "method=\"html\"" in snippet:
         return False
 
@@ -114,13 +115,18 @@ def _is_svrl_stylesheet(path: str) -> bool:
 def _list_rulesets():
     # pick xslt files under data/schematron**
     xslt = []
+    fallback = []
     for root, _, files in os.walk(SCHEMATRON_DIR):
         for f in files:
             if f.lower().endswith((".xsl", ".xslt")):
                 path = os.path.join(root, f)
                 if _is_svrl_stylesheet(path):
                     xslt.append(path)
-    return sorted(xslt)
+                else:
+                    fallback.append(path)
+    if xslt:
+        return sorted(xslt)
+    return sorted(fallback)
 
 
 def _list_invoices():
