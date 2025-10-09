@@ -158,6 +158,9 @@ Use the **Generate Certificate** tab to create your private key and certificate 
 
 The app writes files to `/data/certs/`:
 - `client.key` (or `{base}.key`) — your private key, **keep it safe**.
+
+---
+
 - `client.csr` (or `{base}.csr`) — send this to **VDAA** for issuance.
 
 **After issuance**
@@ -193,6 +196,22 @@ The Config screen now offers a **Find & Convert** panel. It scans a directory un
 3. Adjust directories if needed and run **Find and convert** (enable PKCS#12 to create `client.p12`).
 4. Run **Verify chain & TLS probe** to check the assembled certificates.
 
+## Troubleshooting Schematron validation
+
+When validating sample invoices against the **CEN-EN16931** Schematron profile you might encounter warnings such as:
+
+```
+[UBL-CR-169]-A UBL invoice should not include the AccountingSupplierParty Party PartyTaxScheme RegistrationName
+[UBL-CR-232]-A UBL invoice should not include the AccountingCustomerParty Party PartyTaxScheme RegistrationName
+[UBL-CR-504]-A UBL invoice should not include the TaxTotal TaxSubtotal TaxCategory Name
+```
+
+These messages originate from the optional *cross-rule* checks in the profile.  They flag that the invoice XML contains
+`cbc:RegistrationName` elements inside `cac:PartyTaxScheme` (for both supplier and customer) or `cbc:Name` inside
+`cac:TaxTotal/cac:TaxSubtotal/cac:TaxCategory`.  The EN 16931 guidance expects those fields to be omitted, therefore the
+Schematron uses `not(...)` expressions to assert their absence.【F:data/schematron/peppol/CEN-EN16931-UBL.sch†L561-L625】【F:data/schematron/peppol/CEN-EN16931-UBL.sch†L667-L672】
+
+To resolve the warnings, remove those elements from the invoice instance or switch to a Schematron profile that allows them.
 ---
 
 ### WSDL Browser
