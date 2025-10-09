@@ -126,6 +126,18 @@
     <select id="sch">
     </select>
   </label>
+  <label class="source-option">
+    <span><input type="radio" name="sch_source" value="editor" checked> Use XML from editor</span>
+  </label>
+  <label class="source-option">
+    <span><input type="radio" name="sch_source" value="saved"> Validate existing invoice</span>
+    <select id="sch_invoice" disabled>
+    </select>
+  </label>
+  <label class="source-option">
+    <span><input type="radio" name="sch_source" value="upload"> Upload XML for validation</span>
+    <input type="file" id="sch_upload" accept=".xml" disabled>
+  </label>
 </div>
 <div class="actions">
   <button type="button" id="sch_validate">Validate (Schematron)</button>
@@ -137,6 +149,7 @@
 .line{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:10px}
 .actions{display:flex;gap:10px;margin:10px 0}
 .muted{opacity:.7}
+.source-option{display:flex;flex-direction:column;gap:6px}
 </style>
 
 <script>
@@ -273,12 +286,72 @@ document.getElementById('validate').addEventListener('click', async ()=>{
   } catch(e){}
 })();
 
+(async function(){
+  try {
+    const r = await fetch('/schematron/invoices');
+    const js = await r.json();
+    const sel = document.getElementById('sch_invoice');
+    sel.innerHTML = '';
+    if((js.invoices || []).length === 0){
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '(no invoices found)';
+      sel.appendChild(opt);
+    } else {
+      (js.invoices || []).forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p;
+        opt.textContent = p;
+        sel.appendChild(opt);
+      });
+    }
+  } catch(e){}
+})();
+
+const schSourceRadios = Array.from(document.querySelectorAll('input[name="sch_source"]'));
+const schInvoiceSelect = document.getElementById('sch_invoice');
+const schUploadInput = document.getElementById('sch_upload');
+
+function updateSchematronSourceControls(){
+  const chosen = (document.querySelector('input[name="sch_source"]:checked') || {}).value;
+  schInvoiceSelect.disabled = chosen !== 'saved';
+  schUploadInput.disabled = chosen !== 'upload';
+  if(chosen !== 'upload'){
+    schUploadInput.value = '';
+  }
+}
+
+schSourceRadios.forEach(r => r.addEventListener('change', updateSchematronSourceControls));
+updateSchematronSourceControls();
+
 document.getElementById('sch_validate').addEventListener('click', async ()=>{
   const invoice_xml = document.getElementById('xml').value;
   const ruleset_path = document.getElementById('sch').value;
+  const source = (document.querySelector('input[name="sch_source"]:checked') || {}).value;
   const fd = new FormData();
-  fd.append('invoice_xml', invoice_xml);
   fd.append('ruleset_path', ruleset_path);
+  if(source === 'saved'){
+    const path = schInvoiceSelect.value;
+    if(!path){
+      alert('Select an invoice from the list.');
+      return;
+    }
+    fd.append('invoice_path', path);
+  } else if(source === 'upload'){
+    const file = schUploadInput.files[0];
+    if(!file){
+      alert('Choose an XML file to upload.');
+      return;
+    }
+    fd.append('invoice_file', file);
+  } else {
+    if(!invoice_xml){
+      if(!confirm('XML preview is empty. Continue with empty content?')){
+        return;
+      }
+    }
+    fd.append('invoice_xml', invoice_xml);
+  }
   const res = await fetch('/schematron/validate', { method:'POST', body: fd });
   const js = await res.json();
   document.getElementById('schout').textContent = JSON.stringify(js, null, 2);
