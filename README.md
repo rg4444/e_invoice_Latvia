@@ -421,7 +421,9 @@ Latvia’s e-rēķins follows EN 16931 (EU e-invoicing standard) and commonly us
 Schematron is a rule language for XML that uses XPath assertions to validate **business rules** (beyond structural XSD checks). The EN 16931 and Peppol BIS 3.0 e-invoicing rules are distributed as Schematron (often compiled to XSLT that produces an **SVRL** report).
 
 **Engine**  
-This app runs compiled Schematron XSLT using **Saxon-HE** (Java) and parses the **SVRL** output to list failures/warnings.
+This app runs compiled Schematron XSLT using **Saxon-HE** (Java) and parses the **SVRL** output to list failures/warnings. When
+only a raw `.sch` is available, the app automatically performs the ISO Schematron compilation pipeline (dsdl-include →
+abstract-expand → svrl-for-xslt2) so you can point directly to the authoritative rule distribution.
 
 **Setup**  
 1. Ensure Java is present inside the container. The Dockerfile installs `openjdk-17-jre-headless` and downloads `saxon-he.jar` to `/opt/saxon/saxon-he.jar` (plus the required `xmlresolver.jar`).
@@ -433,7 +435,8 @@ data/schematron/en16931/.xslt
 data/schematron/peppol/.xslt
 ```
 
-*(If you only have `.sch`, add the ISO Schematron compilation step to generate XSLT, or provide precompiled XSLT from the rule provider.)*
+*(If you only have `.sch`, simply drop it under `data/schematron/**` — the app compiles it on the fly. ISO skeleton stylesheets
+live in `data/schematron/iso/` and can be updated from the [official Schematron repository](https://github.com/Schematron/schematron).)*
 
 **Usage**  
 - Open **Invoice** tab, generate or load invoice, then:
