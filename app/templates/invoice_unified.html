@@ -145,6 +145,20 @@
 <div id="schout" class="schout">
   <p class="muted">Schematron validation results will appear here.</p>
 </div>
+<div id="sch_report" class="sch-report" hidden>
+  <div class="sch-report-header-row">
+    <h4>Error report</h4>
+    <button type="button" id="sch_report_download" class="btn btn-secondary btn-sm" disabled>Download report</button>
+  </div>
+  <p class="sch-report-summary"></p>
+  <p class="sch-report-meta muted"></p>
+  <div class="sch-report-errors-block">
+    <p class="sch-report-errors-title">Following error(s) appear:</p>
+    <ul class="sch-report-errors"></ul>
+  </div>
+  <h5>Invoice content</h5>
+  <pre class="sch-report-invoice"></pre>
+</div>
 
 <style>
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
@@ -167,6 +181,15 @@
 .sch-issue-meta code{background:#f1f1f1;padding:2px 4px;border-radius:4px;white-space:normal}
 .sch-raw summary{cursor:pointer;font-weight:600}
 .sch-raw pre{max-height:260px;overflow:auto;background:#222;color:#f5f5f5;padding:10px;border-radius:6px}
+.sch-report{margin-top:16px;padding:16px;border:1px solid #d5d5d5;border-radius:10px;background:#fff8f8;display:flex;flex-direction:column;gap:12px}
+.sch-report[hidden]{display:none}
+.sch-report-header-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.sch-report-summary{margin:0;font-weight:600;color:#8a1111}
+.sch-report-errors-block{display:flex;flex-direction:column;gap:8px}
+.sch-report-errors-title{margin:0;font-weight:600}
+.sch-report-errors{margin:0;padding-left:1.25rem;display:flex;flex-direction:column;gap:6px}
+.sch-report-errors li{list-style:disc}
+.sch-report-invoice{margin:0;background:#1e1e1e;color:#f1f1f1;padding:12px;border-radius:8px;max-height:280px;overflow:auto;font-size:.85rem}
 </style>
 
 <script>
@@ -345,6 +368,97 @@ function escapeHtml(str){
   return (str ?? '').replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
 }
 
+const schReportContainer = document.getElementById('sch_report');
+const schReportSummary = schReportContainer ? schReportContainer.querySelector('.sch-report-summary') : null;
+const schReportMeta = schReportContainer ? schReportContainer.querySelector('.sch-report-meta') : null;
+const schReportErrors = schReportContainer ? schReportContainer.querySelector('.sch-report-errors') : null;
+const schReportInvoice = schReportContainer ? schReportContainer.querySelector('.sch-report-invoice') : null;
+const schReportDownload = document.getElementById('sch_report_download');
+let schReportBlobState = null;
+
+function resetSchematronReport(){
+  if(!schReportContainer){
+    return;
+  }
+  schReportContainer.hidden = true;
+  if(schReportSummary){
+    schReportSummary.textContent = '';
+  }
+  if(schReportMeta){
+    schReportMeta.textContent = '';
+  }
+  if(schReportErrors){
+    schReportErrors.innerHTML = '';
+  }
+  if(schReportInvoice){
+    schReportInvoice.textContent = '';
+  }
+  if(schReportDownload){
+    schReportDownload.disabled = true;
+  }
+  schReportBlobState = null;
+}
+
+function renderSchematronReport(js){
+  if(!schReportContainer){
+    return;
+  }
+  if(js && js.report){
+    schReportContainer.hidden = false;
+    if(schReportSummary){
+      schReportSummary.textContent = js.report.header || 'Schematron validation failed.';
+    }
+    if(schReportMeta){
+      const inv = js.invoice_name || 'Invoice';
+      const ruleset = js.ruleset_name || 'Ruleset';
+      schReportMeta.textContent = `Invoice: ${inv} • Schema: ${ruleset}`;
+    }
+    if(schReportErrors){
+      const errs = (js.report.errors && js.report.errors.length ? js.report.errors : js.issues) || [];
+      schReportErrors.innerHTML = '';
+      errs.forEach((msg)=>{
+        const li = document.createElement('li');
+        li.textContent = msg;
+        schReportErrors.appendChild(li);
+      });
+    }
+    if(schReportInvoice){
+      schReportInvoice.textContent = js.report.invoice_content || '';
+    }
+    if(schReportDownload && js.report.text){
+      schReportDownload.disabled = false;
+      schReportBlobState = {
+        text: js.report.text,
+        filename: js.report.filename || 'schematron-report.txt'
+      };
+    } else if(schReportDownload){
+      schReportDownload.disabled = true;
+      schReportBlobState = null;
+    }
+  } else {
+    resetSchematronReport();
+  }
+}
+
+if(schReportDownload){
+  schReportDownload.addEventListener('click', ()=>{
+    if(!schReportBlobState){
+      return;
+    }
+    const blob = new Blob([schReportBlobState.text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = schReportBlobState.filename;
+    document.body.appendChild(a);
+    a.click();
+    requestAnimationFrame(()=>{
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  });
+}
+
 function renderSchematronResult(js){
   const out = document.getElementById('schout');
   if(!out){
@@ -352,6 +466,7 @@ function renderSchematronResult(js){
   }
   out.innerHTML = '';
   if(!js || typeof js !== 'object'){
+    resetSchematronReport();
     out.innerHTML = '<p class="sch-status sch-status-fail">Unable to display schematron validation result.</p>';
     return;
   }
@@ -451,6 +566,12 @@ function renderSchematronResult(js){
     details.appendChild(summary);
     details.appendChild(pre);
     out.appendChild(details);
+  }
+
+  if(js.ok){
+    resetSchematronReport();
+  } else {
+    renderSchematronReport(js);
   }
 }
 
