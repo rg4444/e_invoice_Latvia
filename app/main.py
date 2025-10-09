@@ -91,13 +91,35 @@ def _list_xsd_entrypoints():
     return entries
 
 
+def _is_svrl_stylesheet(path: str) -> bool:
+    """Return True when the XSLT produces SVRL rather than an HTML preview."""
+
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+            snippet = fh.read(4096)
+    except OSError:
+        return False
+
+    # Compiled Schematron stylesheets always declare the SVRL namespace.
+    if "http://purl.oclc.org/dsdl/svrl" in snippet:
+        return True
+
+    # Some viewers declare HTML output, so explicitly exclude those.
+    if "<xsl:output" in snippet and "method=\"html\"" in snippet:
+        return False
+
+    return False
+
+
 def _list_rulesets():
     # pick xslt files under data/schematron**
     xslt = []
     for root, _, files in os.walk(SCHEMATRON_DIR):
         for f in files:
             if f.lower().endswith((".xsl", ".xslt")):
-                xslt.append(os.path.join(root, f))
+                path = os.path.join(root, f)
+                if _is_svrl_stylesheet(path):
+                    xslt.append(path)
     return sorted(xslt)
 
 
