@@ -1,8 +1,36 @@
-import os, subprocess, tempfile
+import os
+import subprocess
+import tempfile
+
 from lxml import etree
 
 SVRL_NS = {"svrl": "http://purl.oclc.org/dsdl/svrl"}
 SAXON_JAR = os.environ.get("SAXON_JAR", "/opt/saxon/saxon-he.jar")
+XML_RESOLVER_JAR = os.environ.get("XML_RESOLVER_JAR", "/opt/saxon/xmlresolver.jar")
+
+
+def _saxon_command(src: str, xslt_path: str, out: str) -> list[str]:
+    """Build the Java command for invoking Saxon."""
+
+    if XML_RESOLVER_JAR and os.path.exists(XML_RESOLVER_JAR):
+        classpath = os.pathsep.join(filter(None, [SAXON_JAR, XML_RESOLVER_JAR]))
+        return [
+            "java",
+            "-cp",
+            classpath,
+            "net.sf.saxon.Transform",
+            f"-s:{src}",
+            f"-xsl:{xslt_path}",
+            f"-o:{out}",
+        ]
+    return [
+        "java",
+        "-jar",
+        SAXON_JAR,
+        f"-s:{src}",
+        f"-xsl:{xslt_path}",
+        f"-o:{out}",
+    ]
 
 def run_schematron_xslt(invoice_xml_text: str, xslt_path: str):
     """
@@ -16,12 +44,7 @@ def run_schematron_xslt(invoice_xml_text: str, xslt_path: str):
         out = os.path.join(td, "report.svrl.xml")
         with open(src, "w", encoding="utf-8") as f:
             f.write(invoice_xml_text)
-        cmd = [
-            "java", "-jar", SAXON_JAR,
-            f"-s:{src}",
-            f"-xsl:{xslt_path}",
-            f"-o:{out}",
-        ]
+        cmd = _saxon_command(src, xslt_path, out)
         p = subprocess.run(cmd, capture_output=True, text=True)
         if p.returncode != 0:
             return False, "", [f"Saxon error: {p.stderr.strip() or p.stdout.strip()}"]

@@ -11,7 +11,8 @@ RUN apt-get update \
 
 # Put Saxon-HE under /opt/saxon
 RUN mkdir -p /opt/saxon
-RUN curl -L -o /opt/saxon/saxon-he.jar https://repo1.maven.org/maven2/net/sf/saxon/Saxon-HE/12.4/Saxon-HE-12.4.jar
+RUN curl -L -o /opt/saxon/saxon-he.jar https://repo1.maven.org/maven2/net/sf/saxon/Saxon-HE/12.4/Saxon-HE-12.4.jar \
+ && curl -L -o /opt/saxon/xmlresolver.jar https://repo1.maven.org/maven2/org/xmlresolver/xmlresolver/5.2.1/xmlresolver-5.2.1.jar
 
 # App
 WORKDIR /app

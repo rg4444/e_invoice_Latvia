@@ -424,7 +424,7 @@ Schematron is a rule language for XML that uses XPath assertions to validate **b
 This app runs compiled Schematron XSLT using **Saxon-HE** (Java) and parses the **SVRL** output to list failures/warnings.
 
 **Setup**  
-1. Ensure Java is present inside the container. The Dockerfile installs `openjdk-17-jre-headless` and downloads `saxon-he.jar` to `/opt/saxon/saxon-he.jar`.  
+1. Ensure Java is present inside the container. The Dockerfile installs `openjdk-17-jre-headless` and downloads `saxon-he.jar` to `/opt/saxon/saxon-he.jar` (plus the required `xmlresolver.jar`).
 2. Place compiled rules under:
 
 
