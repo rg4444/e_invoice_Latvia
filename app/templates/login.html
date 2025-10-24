@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title text-center mb-4">Sign in</h2>
+        {% if error %}
+        <div class="alert alert-danger" role="alert">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="/login">
+          <input type="hidden" name="next" value="{{ next }}">
+          <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input id="username" name="username" value="{{ username or '' }}" class="form-control" required autofocus>
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input id="password" type="password" name="password" class="form-control" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Log in</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

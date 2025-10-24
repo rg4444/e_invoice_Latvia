@@ -9,6 +9,9 @@ from zeep import Client, Settings
 from zeep.transports import Transport
 from requests import Session
 import requests
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import RedirectResponse
+from urllib.parse import quote
 
 from storage import load_config, save_config
 from ubl import read_reference_invoice, build_invoice_xml, parse_invoice_to_form
@@ -53,6 +56,11 @@ logging.basicConfig(
 )
 
 app = FastAPI()
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET", "change-me"),
+    same_site="lax",
+)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 env = Environment(
     loader=FileSystemLoader("templates"),
@@ -72,6 +80,34 @@ def load_defaults():
 
 def render(tpl, request: Request, **ctx):
     return HTMLResponse(env.get_template(tpl).render(request=request, **ctx))
+
+
+def _safe_next(target: str | None) -> str:
+    if not target:
+        return "/"
+    if target.startswith("/"):
+        return target
+    return "/"
+
+
+LOGIN_EXEMPT_PATHS = {"/login"}
+
+
+@app.middleware("http")
+async def enforce_login(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/static") or path in LOGIN_EXEMPT_PATHS:
+        return await call_next(request)
+    if request.session.get("user"):
+        return await call_next(request)
+
+    if request.method.upper() == "GET":
+        next_path = path
+        if request.url.query:
+            next_path = f"{next_path}?{request.url.query}"
+        redirect_url = f"/login?next={quote(next_path)}"
+        return RedirectResponse(url=redirect_url, status_code=303)
+    return JSONResponse({"detail": "Not authenticated"}, status_code=401)
 
 
 def _list_xsd_entrypoints():
@@ -335,6 +371,48 @@ def home(request: Request):
     cfg = load_config()
     return render("config.html", request, cfg=cfg)
 
+
+@app.get("/login", response_class=HTMLResponse)
+def login_form(request: Request, next: str | None = Query(None)):
+    if request.session.get("user"):
+        return RedirectResponse(url=_safe_next(next), status_code=303)
+    return render("login.html", request, next=_safe_next(next))
+
+
+@app.post("/login")
+async def login_submit(
+    request: Request,
+    username: str = Form(""),
+    password: str = Form(""),
+    next: str = Form("/"),
+):
+    cfg = load_config()
+    credentials = cfg.get("auth_credentials") or []
+    valid = any(
+        cred.get("username") == username and cred.get("password") == password
+        for cred in credentials
+    )
+    if valid:
+        request.session["user"] = username
+        return RedirectResponse(url=_safe_next(next), status_code=303)
+    error = "Invalid username or password"
+    return render(
+        "login.html",
+        request,
+        error=error,
+        next=_safe_next(next),
+        username=username,
+    )
+
+
+@app.get("/logout")
+def logout(request: Request, next: str | None = Query(None)):
+    request.session.clear()
+    target = _safe_next(next)
+    if target == "/":
+        target = "/login"
+    return RedirectResponse(url=target, status_code=303)
+
 @app.post("/save-config")
 def save_config_route(
     endpoint: str = Form(""), soap_action: str = Form(""),
@@ -345,9 +423,23 @@ def save_config_route(
     client_key_pass: str = Form(""),
     client_p12: str = Form(""), p12_password: str = Form(""),
     verify_tls: bool = Form(False), ca_bundle: str = Form(""),
-    schema_path: str = Form(""), success_indicator: str = Form("Success")
+    schema_path: str = Form(""), success_indicator: str = Form("Success"),
+    auth_credentials: str = Form("[]"),
 ):
     cfg = load_config()
+    parsed_credentials: list[dict[str, str]] = []
+    try:
+        payload = json.loads(auth_credentials)
+        if isinstance(payload, list):
+            for cred in payload:
+                if not isinstance(cred, dict):
+                    continue
+                user = str(cred.get("username", "")).strip()
+                password_value = str(cred.get("password", ""))
+                if user:
+                    parsed_credentials.append({"username": user, "password": password_value})
+    except json.JSONDecodeError:
+        parsed_credentials = cfg.get("auth_credentials", [])
     cfg.update({
         "endpoint": endpoint.strip(),
         "soap_action": soap_action.strip(),
@@ -365,6 +457,7 @@ def save_config_route(
         "ca_bundle": ca_bundle.strip(),
         "schema_path": schema_path.strip(),
         "success_indicator": success_indicator.strip(),
+        "auth_credentials": parsed_credentials,
     })
     save_config(cfg)
     return JSONResponse({"status": "ok"})

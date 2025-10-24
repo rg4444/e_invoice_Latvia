@@ -1,3 +1,4 @@
+{% if request.session.get("user") %}
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
   <div class="container-fluid">
     <a class="navbar-brand" href="/">e-Rēķini Tester</a>
@@ -11,5 +12,10 @@
       <a class="nav-link{% if current == '/kosit' %} active{% endif %}"{% if current == '/kosit' %} aria-current="page"{% endif %} href="/kosit">KoSIT Validator</a>
       <a class="nav-link{% if current == '/send' %} active{% endif %}"{% if current == '/send' %} aria-current="page"{% endif %} href="/send">Send</a>
     </div>
+    <div class="navbar-nav ms-auto align-items-center">
+      <span class="navbar-text me-3">Signed in as {{ request.session.get("user") }}</span>
+      <a class="nav-link" href="/logout">Logout</a>
+    </div>
   </div>
 </nav>
+{% endif %}

@@ -1,4 +1,4 @@
-import json, os
+import json, os, copy
 
 CONFIG_PATH = "/data/config.json"
 
@@ -21,17 +21,21 @@ DEFAULTS = {
     "success_indicator": "Success",
     "last_message_id": "",
     "last_content_id": "",
+    "auth_credentials": [
+        {"username": "Administrator", "password": "invoicetool"},
+    ],
 }
 
 def load_config():
+    config = copy.deepcopy(DEFAULTS)
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
-            for k, v in DEFAULTS.items():
-                data.setdefault(k, v)
-            return data
+            if isinstance(data, dict):
+                config.update(data)
     except Exception:
-        return DEFAULTS.copy()
+        pass
+    return config
 
 def save_config(cfg: dict):
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
