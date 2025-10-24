@@ -188,11 +188,88 @@ document.getElementById('fix').addEventListener('click', async ()=>{
     <label for="success_indicator" class="form-label">Success indicator</label>
     <input id="success_indicator" name="success_indicator" value="{{cfg.success_indicator}}" class="form-control">
   </div>
+  <div class="mb-3">
+    <label class="form-label">Application users</label>
+    <p class="form-text">Manage usernames and passwords allowed to access this tool.</p>
+    <div class="table-responsive">
+      <table class="table align-middle" id="credential-table">
+        <thead>
+          <tr>
+            <th scope="col">Username</th>
+            <th scope="col">Password</th>
+            <th scope="col" class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="credential-body"></tbody>
+      </table>
+    </div>
+    <button id="add-credential" type="button" class="btn btn-outline-primary btn-sm">Add user</button>
+  </div>
+  <input type="hidden" id="auth_credentials" name="auth_credentials">
   <button type="submit" class="btn btn-primary">Save</button>
 </form>
 <script>
+const credentialBody = document.getElementById('credential-body');
+const authInput = document.getElementById('auth_credentials');
+
+function addCredentialRow(username = '', password = '') {
+  const row = document.createElement('tr');
+  row.classList.add('credential-row');
+
+  const userCell = document.createElement('td');
+  const userInput = document.createElement('input');
+  userInput.className = 'form-control cred-username';
+  userInput.value = username;
+  userInput.placeholder = 'Username';
+  userCell.appendChild(userInput);
+
+  const passCell = document.createElement('td');
+  const passInput = document.createElement('input');
+  passInput.type = 'password';
+  passInput.className = 'form-control cred-password';
+  passInput.value = password;
+  passInput.placeholder = 'Password';
+  passCell.appendChild(passInput);
+
+  const actionCell = document.createElement('td');
+  actionCell.className = 'text-end';
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'btn btn-outline-danger btn-sm';
+  removeBtn.textContent = 'Remove';
+  removeBtn.addEventListener('click', () => row.remove());
+  actionCell.appendChild(removeBtn);
+
+  row.appendChild(userCell);
+  row.appendChild(passCell);
+  row.appendChild(actionCell);
+  credentialBody.appendChild(row);
+}
+
+const initialCredentials = {{ cfg.auth_credentials | tojson | safe }};
+if (Array.isArray(initialCredentials) && initialCredentials.length) {
+  initialCredentials.forEach((cred) => {
+    addCredentialRow(cred.username || '', cred.password || '');
+  });
+} else {
+  addCredentialRow('Administrator', 'invoicetool');
+}
+
+document.getElementById('add-credential').addEventListener('click', () => {
+  addCredentialRow();
+});
+
 document.getElementById('cfg').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const credentials = [];
+  document.querySelectorAll('#credential-body .credential-row').forEach((row) => {
+    const username = row.querySelector('.cred-username').value.trim();
+    const password = row.querySelector('.cred-password').value;
+    if (username) {
+      credentials.push({ username, password });
+    }
+  });
+  authInput.value = JSON.stringify(credentials);
   const fd = new FormData(e.target);
   const res = await fetch('/save-config', { method:'POST', body: fd });
   alert('Saved');
