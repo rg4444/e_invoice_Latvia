@@ -10,6 +10,7 @@ from zeep.transports import Transport
 from requests import Session
 import requests
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse
 from urllib.parse import quote
 
@@ -93,21 +94,31 @@ def _safe_next(target: str | None) -> str:
 LOGIN_EXEMPT_PATHS = {"/login"}
 
 
-@app.middleware("http")
-async def enforce_login(request: Request, call_next):
-    path = request.url.path
-    if path.startswith("/static") or path in LOGIN_EXEMPT_PATHS:
-        return await call_next(request)
-    if request.session.get("user"):
-        return await call_next(request)
+class LoginRequiredMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        session = request.scope.get("session")
+        if session is None:
+            session = {}
+            request.scope["session"] = session
 
-    if request.method.upper() == "GET":
-        next_path = path
-        if request.url.query:
-            next_path = f"{next_path}?{request.url.query}"
-        redirect_url = f"/login?next={quote(next_path)}"
-        return RedirectResponse(url=redirect_url, status_code=303)
-    return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+        if path.startswith("/static") or path in LOGIN_EXEMPT_PATHS:
+            return await call_next(request)
+
+        if session.get("user"):
+            return await call_next(request)
+
+        if request.method.upper() == "GET":
+            next_path = path
+            if request.url.query:
+                next_path = f"{next_path}?{request.url.query}"
+            redirect_url = f"/login?next={quote(next_path)}"
+            return RedirectResponse(url=redirect_url, status_code=303)
+
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+
+
+app.add_middleware(LoginRequiredMiddleware)
 
 
 def _list_xsd_entrypoints():
