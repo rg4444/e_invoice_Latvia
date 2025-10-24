@@ -57,11 +57,6 @@ logging.basicConfig(
 )
 
 app = FastAPI()
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=os.getenv("SESSION_SECRET", "change-me"),
-    same_site="lax",
-)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 env = Environment(
     loader=FileSystemLoader("templates"),
@@ -118,7 +113,14 @@ class LoginRequiredMiddleware(BaseHTTPMiddleware):
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
 
 
+# Register the login enforcement middleware before the session middleware so
+# that SessionMiddleware executes first and populates request.session.
 app.add_middleware(LoginRequiredMiddleware)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET", "change-me"),
+    same_site="lax",
+)
 
 
 def _list_xsd_entrypoints():
