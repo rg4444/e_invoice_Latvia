@@ -17,7 +17,7 @@ RUN curl -L -o /opt/saxon/saxon-he.jar https://repo1.maven.org/maven2/net/sf/sax
 # App
 WORKDIR /app
 COPY app /app
-RUN pip install --no-cache-dir fastapi uvicorn[standard] jinja2 requests lxml python-dotenv python-multipart zeep
+RUN pip install --no-cache-dir fastapi uvicorn[standard] jinja2 requests lxml python-dotenv python-multipart zeep itsdangerous
 
 EXPOSE 9595
 ENV PYTHONUNBUFFERED=1
