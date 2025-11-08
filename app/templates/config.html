@@ -144,6 +144,7 @@ document.getElementById('fix').addEventListener('click', async ()=>{
       <option value="username" {% if cfg.wsse_mode == "username" %}selected{% endif %}>UsernameToken</option>
       <option value="x509" {% if cfg.wsse_mode == "x509" %}selected{% endif %}>X.509</option>
     </select>
+    <div class="form-text">Leave the Username/Password fields empty to skip the UsernameToken and use only mutual TLS.</div>
   </div>
   <div class="mb-3">
     <label for="username" class="form-label">Username</label>
@@ -152,6 +153,7 @@ document.getElementById('fix').addEventListener('click', async ()=>{
   <div class="mb-3">
     <label for="password" class="form-label">Password</label>
     <input id="password" type="password" name="password" value="{{cfg.password}}" class="form-control">
+    <div class="form-text">Provide the VDAA-issued SOAP credentials if available; otherwise leave blank so no WS-Security UsernameToken is sent.</div>
   </div>
   <div class="mb-3">
     <label for="client_cert" class="form-label">Client cert (PEM)</label>

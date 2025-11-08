@@ -246,9 +246,9 @@ Use **WSDL Browser** to discover operations and auto-fill the Send page.
    - Run XSD validation against UBL 2.1 tree  
    - Resolve all errors before sending
 
-4. **Send Invoice**  
-   - Build SOAP envelope with WS-Security UsernameToken  
-   - Send via HTTPS with optional mutual TLS  
+4. **Send Invoice**
+   - Build SOAP envelope with WS-Addressing and optional WS-Security UsernameToken
+   - Send via HTTPS with optional mutual TLS
    - Inspect raw request/response in Debug panel
 
 5. **Check Logs**  
@@ -263,6 +263,13 @@ Use **WSDL Browser** to discover operations and auto-fill the Send page.
   - HTTP status = `200` **and**
   - Response contains the configured *Success indicator* substring (default: `"Valid"`).
 - This is a **test tool only**, not for production invoice dispatch.
+
+### WS-Security credentials
+
+- If VDAA has issued SOAP credentials (username/password), enter them on the **Config** tab. The app will send a
+  WS-Security UsernameToken digest alongside mutual TLS.
+- If you rely purely on the client certificate for authentication, leave the Username/Password fields empty. The request will
+  omit the WS-Security header so the service only sees the mutual TLS identity.
 
 ## Known Issue: CA bundle vs. public trust (WSDL fetch)
 

@@ -44,6 +44,8 @@ XSD_DIR = "/data/xsd"
 SCHEMATRON_DIR = "/data/schematron"
 ADDRESSES_DIR = "/data/addresses"
 ADDRESSEE_NS = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
+SOAP11_NS = "http://schemas.xmlsoap.org/soap/envelope/"
+SOAP12_NS = "http://www.w3.org/2003/05/soap-envelope"
 
 os.makedirs(INVOICE_DIR, exist_ok=True)
 os.makedirs(ADDRESSES_DIR, exist_ok=True)
@@ -236,6 +238,43 @@ def _parse_addressee_summary(response_xml: str) -> dict:
     return out
 
 
+def _extract_fault_info(response_xml: str) -> dict[str, str]:
+    if not response_xml:
+        return {}
+    try:
+        root = etree.fromstring(response_xml.encode("utf-8"))
+    except Exception:
+        return {}
+
+    fault = None
+    reason = ""
+    subcode = ""
+
+    for soap_ns in (SOAP12_NS, SOAP11_NS):
+        fault = root.find(f".//{{{soap_ns}}}Fault")
+        if fault is None:
+            continue
+        if soap_ns == SOAP12_NS:
+            reason = (fault.findtext(f".//{{{soap_ns}}}Text", default="") or "").strip()
+            subcode = (
+                fault.findtext(f".//{{{soap_ns}}}Subcode/{{{soap_ns}}}Value", default="") or ""
+            ).strip()
+        else:
+            reason = (fault.findtext("faultstring", default="") or "").strip()
+            subcode = (fault.findtext("faultcode", default="") or "").strip()
+        break
+
+    if fault is None:
+        return {}
+
+    out: dict[str, str] = {}
+    if subcode:
+        out["soap_fault_subcode"] = subcode
+    if reason:
+        out["soap_fault_reason"] = reason
+    return out
+
+
 def _invoke_addressee_operation(
     operation: str,
     param_name: str,
@@ -282,6 +321,10 @@ def _invoke_addressee_operation(
         "tls_debug": result.get("tls_debug"),
         **summary,
     }
+
+    fault_info = _extract_fault_info(response_xml)
+    if fault_info:
+        payload.update(fault_info)
 
     if response_xml:
         ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
