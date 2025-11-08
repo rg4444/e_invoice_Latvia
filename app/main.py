@@ -33,10 +33,11 @@ from tools import (
 )
 from validation import validate_xsd
 from utils_attachments import read_file_b64, new_content_id
-from soap_client import build_soap_envelope, send_invoice, send_raw_envelope
+from soap_client import send_invoice, send_raw_envelope
 from lxml import etree
 from schematron import run_schematron
 from kosit_runner import run_kosit
+from address_service import call_unified_operation, UnifiedServiceError
 
 INVOICE_DIR = "/data/invoices"
 SAMPLES_DIR = "/data/samples"
@@ -195,13 +196,6 @@ def _list_invoices():
     return sorted([os.path.join(INVOICE_DIR, f) for f in os.listdir(INVOICE_DIR) if f.lower().endswith(".xml")])
 
 
-def _build_addressee_body(operation: str, param_name: str, param_value: str) -> str:
-    root = etree.Element(f"{{{ADDRESSEE_NS}}}{operation}")
-    child = etree.SubElement(root, f"{{{ADDRESSEE_NS}}}{param_name}")
-    child.text = str(param_value)
-    return etree.tostring(root, encoding="unicode")
-
-
 def _parse_addressee_summary(response_xml: str) -> dict:
     if not response_xml:
         return {}
@@ -291,40 +285,54 @@ def _invoke_addressee_operation(
     if not value and not allow_empty:
         return JSONResponse({"ok": False, "error": f"{param_name} is required."}, status_code=400)
 
-    call_cfg = dict(cfg)
-    call_cfg["soap_action"] = soap_action
-
-    body_xml = _build_addressee_body(operation, param_name, value)
-    envelope_xml = build_soap_envelope(call_cfg, body_xml)
-
     try:
-        result = send_raw_envelope(call_cfg, envelope_xml)
-    except requests.RequestException as exc:
+        call_result = call_unified_operation(operation, **{param_name: value})
+    except UnifiedServiceError as exc:
         return JSONResponse(
-            {"ok": False, "error": str(exc), "http_status_client": 502}, status_code=502
+            {"ok": False, "error": str(exc), "operation": operation, "http_status_client": 502},
+            status_code=502,
         )
 
-    response_xml = result.get("response_xml") or ""
+    response_xml = call_result.response_xml or ""
 
     summary = _parse_addressee_summary(response_xml)
 
     payload = {
-        "ok": result.get("ok", False),
+        "ok": call_result.ok,
         "operation": operation,
-        "http_status": result.get("http_status"),
-        "took_ms": result.get("took_ms"),
-        "request_xml": result.get("request_xml"),
+        "http_status": call_result.http_status,
+        "took_ms": call_result.took_ms,
+        "request_xml": call_result.request_xml,
         "response_xml": response_xml,
-        "soap_action": soap_action,
+        "soap_action": call_result.soap_action or soap_action,
         "saved_path": None,
         "filename": None,
-        "tls_debug": result.get("tls_debug"),
+        "request_saved_path": None,
+        "request_filename": None,
+        "ws_security": call_result.ws_security,
+        "endpoint": call_result.endpoint,
+        "fault": call_result.fault,
+        "fault_code": call_result.fault_code,
+        "fault_detail_xml": call_result.fault_detail_xml,
         **summary,
     }
 
     fault_info = _extract_fault_info(response_xml)
     if fault_info:
         payload.update(fault_info)
+
+    ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+
+    if call_result.request_xml:
+        request_filename = f"{operation}_{ts}_request.xml"
+        os.makedirs(ADDRESSES_DIR, exist_ok=True)
+        request_path = os.path.join(ADDRESSES_DIR, request_filename)
+        with open(request_path, "w", encoding="utf-8") as fh:
+            fh.write(call_result.request_xml)
+        payload.update({
+            "request_saved_path": request_path,
+            "request_filename": request_filename,
+        })
 
     if response_xml:
         ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")

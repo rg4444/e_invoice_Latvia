@@ -62,10 +62,29 @@
     if (data.operation) lines.push("Operation: " + data.operation);
     if (typeof data.http_status !== "undefined") lines.push("HTTP status: " + data.http_status);
     if (typeof data.took_ms !== "undefined") lines.push("Duration: " + data.took_ms + " ms");
+    if (data.endpoint) lines.push("Endpoint: " + data.endpoint);
+    if (data.ws_security) {
+      const ws = data.ws_security;
+      if (ws.ws_security_active) {
+        lines.push("WS-Security mode: " + (ws.mode || "enabled"));
+        if (ws.certificate_path) {
+          lines.push("Signing certificate: " + ws.certificate_path);
+        }
+      }
+      if (ws.ws_addressing) {
+        lines.push("WS-Addressing: enabled");
+      }
+      if (typeof ws.verify_tls !== "undefined") {
+        lines.push("TLS verification: " + (ws.verify_tls ? "on" : "off"));
+      }
+    }
     if (data.addressee_count) lines.push("Addressee records in this batch: " + data.addressee_count);
     if (data.next_token) lines.push("Next token for paging: " + data.next_token);
     if (typeof data.max_version !== "undefined") lines.push("MaxVersion for delta: " + data.max_version);
-    if (data.filename) lines.push("Saved XML: {{ addresses_dir }}/" + data.filename);
+    if (data.filename) lines.push("Saved response: {{ addresses_dir }}/" + data.filename);
+    if (data.request_filename) lines.push("Saved request: {{ addresses_dir }}/" + data.request_filename);
+    if (data.fault) lines.push("SOAP fault: " + data.fault);
+    if (data.fault_code) lines.push("SOAP fault code: " + data.fault_code);
     if (data.error) lines.push("Error: " + data.error);
 
     const summary = lines.join("\n");
