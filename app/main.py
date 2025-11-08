@@ -279,18 +279,45 @@ def _invoke_addressee_operation(
     cfg = load_config()
     endpoint = (cfg.get("endpoint") or "").strip()
     if not endpoint:
-        return JSONResponse({"ok": False, "error": "Endpoint is not configured."}, status_code=400)
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Endpoint is not configured.",
+                "http_status_client": 400,
+            },
+            status_code=400,
+        )
 
     value = (param_value or "").strip()
     if not value and not allow_empty:
-        return JSONResponse({"ok": False, "error": f"{param_name} is required."}, status_code=400)
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": f"{param_name} is required.",
+                "http_status_client": 400,
+            },
+            status_code=400,
+        )
 
     try:
-        call_result = call_unified_operation(operation, **{param_name: value})
+        call_result = call_unified_operation(
+            operation,
+            **({param_name: value} if value else {}),
+        )
     except UnifiedServiceError as exc:
         return JSONResponse(
             {"ok": False, "error": str(exc), "operation": operation, "http_status_client": 502},
             status_code=502,
+        )
+    except Exception as exc:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": f"Unexpected internal error: {exc}",
+                "operation": operation,
+                "http_status_client": 500,
+            },
+            status_code=500,
         )
 
     response_xml = call_result.response_xml or ""
