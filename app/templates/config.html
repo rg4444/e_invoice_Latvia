@@ -119,7 +119,8 @@ document.getElementById('fix').addEventListener('click', async ()=>{
 <form id="cfg">
   <div class="mb-3">
     <label for="endpoint" class="form-label">Endpoint</label>
-    <input id="endpoint" name="endpoint" value="{{cfg.endpoint}}" class="form-control">
+    <input id="endpoint" name="endpoint" value="{{cfg.endpoint}}" class="form-control" placeholder="https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterface/UnifiedService.svc">
+    <div class="form-text">UnifiedService test endpoint: <code>https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterface/UnifiedService.svc</code></div>
   </div>
   <div class="mb-3">
     <label for="soap_action" class="form-label">SOAPAction</label>
@@ -154,11 +155,13 @@ document.getElementById('fix').addEventListener('click', async ()=>{
   </div>
   <div class="mb-3">
     <label for="client_cert" class="form-label">Client cert (PEM)</label>
-    <input id="client_cert" name="client_cert" value="{{cfg.client_cert}}" class="form-control">
+    <input id="client_cert" name="client_cert" value="{{cfg.client_cert}}" class="form-control" placeholder="/data/certs/client_full.pem">
+    <div class="form-text">Use the combined leaf + chain file from Find &amp; Convert, typically <code>/data/certs/client_full.pem</code>.</div>
   </div>
   <div class="mb-3">
     <label for="client_key" class="form-label">Client key (PEM)</label>
-    <input id="client_key" name="client_key" value="{{cfg.client_key}}" class="form-control">
+    <input id="client_key" name="client_key" value="{{cfg.client_key}}" class="form-control" placeholder="/data/certs/client.key">
+    <div class="form-text">Private key that matches the client certificate, e.g. <code>/data/certs/client.key</code>.</div>
   </div>
   <div class="mb-3">
     <label for="client_key_pass" class="form-label">Key passphrase (optional)</label>
@@ -174,7 +177,8 @@ document.getElementById('fix').addEventListener('click', async ()=>{
   </div>
   <div class="mb-3">
     <label for="ca_bundle" class="form-label">CA bundle (optional)</label>
-    <input id="ca_bundle" name="ca_bundle" value="{{cfg.ca_bundle}}" class="form-control">
+    <input id="ca_bundle" name="ca_bundle" value="{{cfg.ca_bundle}}" class="form-control" placeholder="/data/certs/chain.pem">
+    <div class="form-text">Point to the issuing chain such as <code>/data/certs/chain.pem</code>, or leave blank to use the system trust store. Never use your client certificate or private key here.</div>
   </div>
   <div class="form-check mb-3">
     <input id="verify_tls" type="checkbox" name="verify_tls" class="form-check-input" {% if cfg.verify_tls %}checked{% endif %}>
