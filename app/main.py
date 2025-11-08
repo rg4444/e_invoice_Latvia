@@ -200,14 +200,56 @@ def _build_addressee_body(operation: str, param_name: str, param_value: str) -> 
     return etree.tostring(root, encoding="unicode")
 
 
-def _invoke_addressee_operation(operation: str, param_name: str, param_value: str, soap_action: str):
+def _parse_addressee_summary(response_xml: str) -> dict:
+    if not response_xml:
+        return {}
+    try:
+        root = etree.fromstring(response_xml.encode("utf-8"))
+    except Exception:
+        return {}
+
+    entries = root.findall(".//*[contains(local-name(), 'Addressee')]")
+    count = len(entries)
+
+    next_token = None
+    for cand in root.findall(".//*[contains(local-name(), 'Token')]"):
+        txt = (cand.text or "").strip()
+        if txt:
+            next_token = txt
+            break
+
+    max_version = None
+    for cand in root.findall(".//*[contains(local-name(), 'Version')]"):
+        txt = (cand.text or "").strip()
+        if txt.isdigit():
+            v = int(txt)
+            if max_version is None or v > max_version:
+                max_version = v
+
+    out = {}
+    if count:
+        out["addressee_count"] = count
+    if next_token:
+        out["next_token"] = next_token
+    if max_version is not None:
+        out["max_version"] = max_version
+    return out
+
+
+def _invoke_addressee_operation(
+    operation: str,
+    param_name: str,
+    param_value: str,
+    soap_action: str,
+    allow_empty: bool = False,
+):
     cfg = load_config()
     endpoint = (cfg.get("endpoint") or "").strip()
     if not endpoint:
         return JSONResponse({"ok": False, "error": "Endpoint is not configured."}, status_code=400)
 
     value = (param_value or "").strip()
-    if not value:
+    if not value and not allow_empty:
         return JSONResponse({"ok": False, "error": f"{param_name} is required."}, status_code=400)
 
     call_cfg = dict(cfg)
@@ -221,19 +263,23 @@ def _invoke_addressee_operation(operation: str, param_name: str, param_value: st
     except requests.RequestException as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
 
+    response_xml = result.get("response_xml") or ""
+
+    summary = _parse_addressee_summary(response_xml)
+
     payload = {
         "ok": result.get("ok", False),
         "operation": operation,
         "http_status": result.get("http_status"),
         "took_ms": result.get("took_ms"),
         "request_xml": result.get("request_xml"),
-        "response_xml": result.get("response_xml"),
+        "response_xml": response_xml,
         "soap_action": soap_action,
         "saved_path": None,
         "filename": None,
+        **summary,
     }
 
-    response_xml = result.get("response_xml")
     if response_xml:
         ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
         filename = f"{operation}_{ts}.xml"
@@ -757,12 +803,13 @@ def address_page(request: Request):
 
 
 @app.post("/address/initial")
-def address_initial(token: str = Form(...)):
+def address_initial(token: str = Form("")):
     return _invoke_addressee_operation(
         operation="GetInitialAddresseeRecordList",
         param_name="Token",
         param_value=token,
         soap_action="http://vraa.gov.lv/div/uui/2011/11/UnifiedServiceInterface/GetInitialAddresseeRecordList",
+        allow_empty=True,
     )
 
 
@@ -773,6 +820,7 @@ def address_changed(last_version: str = Form(...)):
         param_name="LastVersion",
         param_value=last_version,
         soap_action="http://vraa.gov.lv/div/uui/2011/11/UnifiedServiceInterface/GetChangedAddresseeRecordList",
+        allow_empty=False,
     )
 
 
