@@ -33,7 +33,7 @@ from tools import (
 )
 from validation import validate_xsd
 from utils_attachments import read_file_b64, new_content_id
-from soap_client import send_invoice, send_raw_envelope
+from soap_client import build_soap_envelope, send_invoice, send_raw_envelope
 from lxml import etree
 from schematron import run_schematron
 from kosit_runner import run_kosit
@@ -42,8 +42,11 @@ INVOICE_DIR = "/data/invoices"
 SAMPLES_DIR = "/data/samples"
 XSD_DIR = "/data/xsd"
 SCHEMATRON_DIR = "/data/schematron"
+ADDRESSES_DIR = "/data/addresses"
+ADDRESSEE_NS = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
 
 os.makedirs(INVOICE_DIR, exist_ok=True)
+os.makedirs(ADDRESSES_DIR, exist_ok=True)
 
 load_dotenv()
 LOG_DIR = "/data/logs"
@@ -188,6 +191,59 @@ def _list_invoices():
     if not os.path.isdir(INVOICE_DIR):
         return []
     return sorted([os.path.join(INVOICE_DIR, f) for f in os.listdir(INVOICE_DIR) if f.lower().endswith(".xml")])
+
+
+def _build_addressee_body(operation: str, param_name: str, param_value: str) -> str:
+    root = etree.Element(f"{{{ADDRESSEE_NS}}}{operation}")
+    child = etree.SubElement(root, f"{{{ADDRESSEE_NS}}}{param_name}")
+    child.text = str(param_value)
+    return etree.tostring(root, encoding="unicode")
+
+
+def _invoke_addressee_operation(operation: str, param_name: str, param_value: str, soap_action: str):
+    cfg = load_config()
+    endpoint = (cfg.get("endpoint") or "").strip()
+    if not endpoint:
+        return JSONResponse({"ok": False, "error": "Endpoint is not configured."}, status_code=400)
+
+    value = (param_value or "").strip()
+    if not value:
+        return JSONResponse({"ok": False, "error": f"{param_name} is required."}, status_code=400)
+
+    call_cfg = dict(cfg)
+    call_cfg["soap_action"] = soap_action
+
+    body_xml = _build_addressee_body(operation, param_name, value)
+    envelope_xml = build_soap_envelope(call_cfg, body_xml)
+
+    try:
+        result = send_raw_envelope(call_cfg, envelope_xml)
+    except requests.RequestException as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
+
+    payload = {
+        "ok": result.get("ok", False),
+        "operation": operation,
+        "http_status": result.get("http_status"),
+        "took_ms": result.get("took_ms"),
+        "request_xml": result.get("request_xml"),
+        "response_xml": result.get("response_xml"),
+        "soap_action": soap_action,
+        "saved_path": None,
+        "filename": None,
+    }
+
+    response_xml = result.get("response_xml")
+    if response_xml:
+        ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        filename = f"{operation}_{ts}.xml"
+        os.makedirs(ADDRESSES_DIR, exist_ok=True)
+        full_path = os.path.join(ADDRESSES_DIR, filename)
+        with open(full_path, "w", encoding="utf-8") as fh:
+            fh.write(response_xml)
+        payload.update({"saved_path": full_path, "filename": filename})
+
+    return JSONResponse(payload)
 
 @app.get("/schematron/list")
 def schematron_list():
@@ -692,6 +748,32 @@ async def invoice_set(request: Request):
 @app.get("/wsdlui", response_class=HTMLResponse)
 def wsdl_ui(request: Request):
     return render("wsdlui.html", request, cfg=load_config())
+
+
+@app.get("/address", response_class=HTMLResponse)
+def address_page(request: Request):
+    cfg = load_config()
+    return render("address.html", request, cfg=cfg, addresses_dir=ADDRESSES_DIR)
+
+
+@app.post("/address/initial")
+def address_initial(token: str = Form(...)):
+    return _invoke_addressee_operation(
+        operation="GetInitialAddresseeRecordList",
+        param_name="Token",
+        param_value=token,
+        soap_action="http://vraa.gov.lv/div/uui/2011/11/UnifiedServiceInterface/GetInitialAddresseeRecordList",
+    )
+
+
+@app.post("/address/changed")
+def address_changed(last_version: str = Form(...)):
+    return _invoke_addressee_operation(
+        operation="GetChangedAddresseeRecordList",
+        param_name="LastVersion",
+        param_value=last_version,
+        soap_action="http://vraa.gov.lv/div/uui/2011/11/UnifiedServiceInterface/GetChangedAddresseeRecordList",
+    )
 
 
 @app.post("/wsdl/load")
