@@ -2,20 +2,26 @@ import os
 import time
 import base64
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from hashlib import sha1
 import secrets
+
 import requests
 from requests.exceptions import SSLError as RequestsSSLError
 
 
 def wsse_username_token(username: str, password: str, use_digest=True):
-    created = datetime.now(timezone.utc).isoformat()
+    username = (username or "").strip()
+    password = (password or "").strip()
+    if not username or not password:
+        return ""
+
+    created = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     nonce = secrets.token_bytes(16)
     nonce_b64 = base64.b64encode(nonce).decode()
     if use_digest:
         # PasswordDigest = Base64 ( SHA1 ( nonce + created + password ) )
-        digest = sha1(nonce + created.encode() + password.encode()).digest()
+        digest = sha1(nonce + created.encode("ascii") + password.encode("utf-8")).digest()
         pwd = base64.b64encode(digest).decode()
         ptype = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest"
     else:
@@ -80,8 +86,8 @@ def wsse_x509_header(cert_pem_path: str) -> str:
 
 
 def build_soap_envelope(cfg: dict, body_xml: str) -> str:
-    wsse = ""
     mode = cfg.get("wsse_mode", "username")
+    wsse = ""
     if mode == "username":
         wsse = wsse_username_token(cfg.get("username", ""), cfg.get("password", ""), use_digest=True)
     elif mode == "x509":
@@ -92,11 +98,13 @@ def build_soap_envelope(cfg: dict, body_xml: str) -> str:
     v = (cfg.get("soap_version") or "1.2").strip()
     ns = "http://schemas.xmlsoap.org/soap/envelope/" if v == "1.1" else "http://www.w3.org/2003/05/soap-envelope"
 
+    header_parts = [part for part in (wsa, wsse) if part]
+    header_xml = "\n    ".join(header_parts)
+    if header_xml:
+        header_xml = f"\n    {header_xml}\n  "
+
     return f"""<soap:Envelope xmlns:soap="{ns}">
-  <soap:Header>
-    {wsa}
-    {wsse}
-  </soap:Header>
+  <soap:Header>{header_xml}</soap:Header>
   <soap:Body>
     {body_xml}
   </soap:Body>
