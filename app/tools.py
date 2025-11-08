@@ -133,10 +133,14 @@ def diagnose(allow_decrypt: bool = False) -> Dict:
     if facts["client_key"] and os.path.exists(facts["client_key"]):
         if not _is_pem(facts["client_key"]):
             issues.append("Private key is not PEM (likely DER/PKCS8).")
-            suggestions.append("Convert to PEM: openssl pkcs8 -inform DER -in client.key -out client.key.pem")
+            suggestions.append(
+                "Convert to PEM: openssl pkcs8 -inform DER -in '<your configured client key (e.g. decrypted.key)>' -out your_key.pem"
+            )
         if _key_is_encrypted(facts["client_key"]):
             issues.append("Private key appears ENCRYPTED.")
-            suggestions.append("Either provide key passphrase in Config or create a decrypted test key (client.key.decrypted.pem) for local testing only.")
+            suggestions.append(
+                "Either provide the key passphrase in Config or create a decrypted test key (e.g. decrypted.key) for local testing only."
+            )
             if allow_decrypt:
                 dec_test_key = os.path.join(os.path.dirname(facts["client_key"]), "client.key.decrypted.pem")
                 code, out, err = _run(f'{OPENSSL} pkey -in {shlex.quote(facts["client_key"])} -out {shlex.quote(dec_test_key)}')
@@ -185,7 +189,9 @@ def diagnose(allow_decrypt: bool = False) -> Dict:
             # Parse common error
             if "unable to set private key file" in log:
                 issues.append("TLS probe: private key not accepted (format or passphrase).")
-                suggestions.append("If key is encrypted, set the passphrase in Config or create client.key.decrypted.pem via Diagnostics.")
+                suggestions.append(
+                    "If the key is encrypted, set the passphrase in Config or create a decrypted copy (e.g. decrypted.key) via Diagnostics."
+                )
             if "certificate verify failed" in log:
                 issues.append("TLS probe: certificate verify failed (CA chain).")
                 suggestions.append("Set CA bundle path to your chain.pem in Config.")
@@ -213,7 +219,8 @@ def auto_fix() -> Dict:
     """
     cfg = load_config()
     cert_dir = os.path.dirname(cfg.get("client_cert","/data/certs/client_full.pem")) or "/data/certs"
-    key_dir = os.path.dirname(cfg.get("client_key","/data/certs/client.key")) or "/data/certs"
+    key_path = cfg.get("client_key") or "/data/certs/decrypted.key"
+    key_dir = os.path.dirname(key_path) or "/data/certs"
 
     # locate materials
     cer = next((p for p in glob.glob(os.path.join(cert_dir, "*.cer"))), "")
