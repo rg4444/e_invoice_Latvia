@@ -1,15 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Address Lists</h2>
-<p class="mb-4">Use the UnifiedService operations to download the addressee lists. The downloaded XML responses are stored in <code>{{ addresses_dir }}</code>.</p>
+<p class="mb-2">Use the UnifiedService operations to download the addressee lists. The downloaded XML responses are stored in <code>{{ addresses_dir }}</code>.</p>
+<p class="text-muted small mb-4">
+  Start <strong>GetInitialAddresseeRecordList</strong> with an empty Token and reuse the returned next token to fetch subsequent pages.
+  For <strong>GetChangedAddresseeRecordList</strong>, provide the <em>MaxVersion</em> value from your last successful batch as <em>LastVersion</em>.
+</p>
 
 <div class="card mb-4">
   <div class="card-body">
     <h5 class="card-title">Initial Addressee Record List</h5>
-    <p class="card-text">Fetch the full addressee list by providing an authorization token.</p>
+    <p class="card-text">Fetch the full addressee list. Leave Token blank on the very first call, then reuse the returned Next token to continue paging.</p>
     <div class="mb-3">
       <label class="form-label" for="addr_token">Token</label>
-      <input id="addr_token" class="form-control" placeholder="Enter token">
+      <input id="addr_token" class="form-control" placeholder="Enter token (optional on first call)">
+      <div class="form-text">Use the <code>next_token</code> from the previous response for follow-up requests.</div>
     </div>
     <button id="addr_initial" class="btn btn-primary">Download initial list</button>
   </div>
@@ -18,10 +23,11 @@
 <div class="card mb-4">
   <div class="card-body">
     <h5 class="card-title">Incremental Addressee Record List</h5>
-    <p class="card-text">Request only the changes since a specific version.</p>
+    <p class="card-text">Request only the changes since a specific version. Supply the highest <code>MaxVersion</code> you have previously received.</p>
     <div class="mb-3">
       <label class="form-label" for="addr_version">Last version</label>
       <input id="addr_version" class="form-control" type="number" min="0" step="1" placeholder="Enter last version">
+      <div class="form-text">Usually the <code>max_version</code> reported in the last changed batch.</div>
     </div>
     <button id="addr_changed" class="btn btn-secondary">Download incremental list</button>
   </div>
@@ -43,7 +49,7 @@
   const initialBtn = document.getElementById('addr_initial');
   const changedBtn = document.getElementById('addr_changed');
 
-  function showResult(data){
+  function showResult(data) {
     resultBox.hidden = false;
 
     if (!data) {
@@ -51,69 +57,55 @@
       return;
     }
 
-    let summaryLines = [];
+    let lines = [];
 
-    if (data.operation) {
-      summaryLines.push("Operation: " + data.operation);
-    }
-    if (typeof data.http_status !== "undefined") {
-      summaryLines.push("HTTP status: " + data.http_status);
-    }
-    if (typeof data.took_ms !== "undefined") {
-      summaryLines.push("Duration: " + data.took_ms + " ms");
-    }
-    if (data.addressee_count) {
-      summaryLines.push("Addressee records in this batch: " + data.addressee_count);
-    }
-    if (data.next_token) {
-      summaryLines.push("Next Token (for next page): " + data.next_token);
-    }
-    if (typeof data.max_version !== "undefined") {
-      summaryLines.push("MaxVersion (for delta): " + data.max_version);
-    }
-    if (data.filename) {
-      summaryLines.push("Saved XML: /data/addresses/" + data.filename);
-    }
-    if (data.error) {
-      summaryLines.push("Error: " + data.error);
-    }
+    if (data.operation) lines.push("Operation: " + data.operation);
+    if (typeof data.http_status !== "undefined") lines.push("HTTP status: " + data.http_status);
+    if (typeof data.took_ms !== "undefined") lines.push("Duration: " + data.took_ms + " ms");
+    if (data.addressee_count) lines.push("Addressee records in this batch: " + data.addressee_count);
+    if (data.next_token) lines.push("Next token for paging: " + data.next_token);
+    if (typeof data.max_version !== "undefined") lines.push("MaxVersion for delta: " + data.max_version);
+    if (data.filename) lines.push("Saved XML: {{ addresses_dir }}/" + data.filename);
+    if (data.error) lines.push("Error: " + data.error);
 
-    const summary = summaryLines.join("\n");
-    const jsonPart = JSON.stringify(data, null, 2);
+    const summary = lines.join("\n");
+    const raw = JSON.stringify(data, null, 2);
 
-    resultBox.textContent = summary + "\n\n--- Raw JSON ---\n" + jsonPart;
+    resultBox.textContent = summary + "\n\n--- Raw JSON ---\n" + raw;
   }
 
-  async function callEndpoint(url, formData, button){
+  async function callEndpoint(url, formData, button) {
     button.disabled = true;
-    showResult({status: 'pending', note: 'Request in progress…'});
+    resultBox.hidden = false;
+    resultBox.textContent = "Calling " + url + "...";
     try {
-      const response = await fetch(url, {method: 'POST', body: formData});
-      const text = await response.text();
+      const response = await fetch(url, { method: "POST", body: formData });
       let data;
       try {
-        data = JSON.parse(text);
-      } catch(err){
-        data = {ok: false, error: 'Failed to parse server response', raw: text};
+        data = await response.json();
+      } catch (err) {
+        data = { ok: false, error: "Failed to parse server response" };
       }
-      data.http_status_client = response.status;
+      if (typeof data.http_status_client === "undefined") {
+        data.http_status_client = response.status;
+      }
       showResult(data);
-    } catch(err){
-      showResult({ok: false, error: err.message || String(err)});
+    } catch (err) {
+      showResult({ ok: false, error: err && err.message ? err.message : String(err) });
     } finally {
       button.disabled = false;
     }
   }
 
-  initialBtn.addEventListener('click', ()=>{
+  initialBtn.addEventListener('click', () => {
     const token = document.getElementById('addr_token').value.trim();
     const fd = new FormData();
     fd.append('token', token);
     callEndpoint('/address/initial', fd, initialBtn);
   });
 
-  changedBtn.addEventListener('click', ()=>{
-    const version = document.getElementById('addr_version').value;
+  changedBtn.addEventListener('click', () => {
+    const version = document.getElementById('addr_version').value.trim();
     const fd = new FormData();
     fd.append('last_version', version);
     callEndpoint('/address/changed', fd, changedBtn);

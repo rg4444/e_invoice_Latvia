@@ -171,7 +171,7 @@ The app writes files to `/data/certs/`:
 - Ensure **Config** paths:
   - Client cert (PEM): `/data/certs/client_full.pem`
   - Client key (PEM):  `/data/certs/client.key`
-  - CA bundle:         `/data/certs/chain.pem`
+  - CA bundle:         `/data/certs/chain.pem` (leave empty to use the system trust store—never point this to `client_full.pem` or any file containing a private key)
 - Click **Verify chain & TLS probe** to confirm connectivity.
 
 > Requirements (per VDAA/VISS guidance):

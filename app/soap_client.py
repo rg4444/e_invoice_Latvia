@@ -102,20 +102,49 @@ def build_soap_envelope(cfg: dict, body_xml: str) -> str:
 </soap:Envelope>"""
 
 
+def _prepare_tls_options(cfg: dict):
+    client_cert = (cfg.get("client_cert") or "").strip()
+    client_key = (cfg.get("client_key") or "").strip()
+    ca_bundle = (cfg.get("ca_bundle") or "").strip()
+
+    verify_tls = bool(cfg.get("verify_tls", True))
+    verify: bool | str = True if verify_tls else False
+
+    if verify_tls and ca_bundle and ca_bundle != client_cert:
+        verify = ca_bundle
+
+    def _looks_like_client_material(path: str) -> bool:
+        if not path or not os.path.exists(path):
+            return False
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                snippet = fh.read()
+        except OSError:
+            return False
+        return "PRIVATE KEY" in snippet
+
+    if isinstance(verify, str) and _looks_like_client_material(verify):
+        verify = True
+
+    cert = None
+    if client_cert and client_key:
+        cert = (client_cert, client_key)
+
+    tls_debug = {
+        "verify": verify if isinstance(verify, bool) else str(verify),
+        "client_cert": client_cert,
+        "client_key_set": bool(client_key),
+        "ca_bundle": ca_bundle,
+    }
+
+    return verify, cert, tls_debug
+
+
 def send_invoice(invoice_xml: str, cfg: dict):
     soap_xml = build_soap_envelope(cfg, invoice_xml)
 
     headers = _headers_for(cfg)
-
-    verify = cfg.get("verify_tls", True)
-    if cfg.get("ca_bundle"):
-        verify = cfg["ca_bundle"]
-
-    cert = None
-    if cfg.get("client_cert") and cfg.get("client_key"):
-        cert = (cfg["client_cert"], cfg["client_key"])
-    elif cfg.get("client_p12"):
-        pass
+    verify, cert, tls_debug = _prepare_tls_options(cfg)
 
     t0 = time.time()
     resp = requests.post(
@@ -140,6 +169,7 @@ def send_invoice(invoice_xml: str, cfg: dict):
             "body": resp.text,
         },
         "timing_ms": elapsed_ms,
+        "tls_debug": tls_debug,
     }
 
     ok = (resp.status_code == 200) and (cfg.get("success_indicator", "") in resp.text)
@@ -149,14 +179,7 @@ def send_invoice(invoice_xml: str, cfg: dict):
 def send_raw_envelope(cfg: dict, envelope_xml: str) -> dict:
     """Send a pre-built SOAP envelope."""
     headers = _headers_for(cfg)
-
-    verify = cfg.get("verify_tls", True)
-    if cfg.get("ca_bundle"):
-        verify = cfg["ca_bundle"]
-
-    cert = None
-    if cfg.get("client_cert") and cfg.get("client_key"):
-        cert = (cfg["client_cert"], cfg["client_key"])
+    verify, cert, tls_debug = _prepare_tls_options(cfg)
 
     t0 = time.time()
     resp = requests.post(
@@ -175,5 +198,6 @@ def send_raw_envelope(cfg: dict, envelope_xml: str) -> dict:
         "took_ms": elapsed_ms,
         "request_xml": envelope_xml,
         "response_xml": resp.text,
+        "tls_debug": tls_debug,
     }
 

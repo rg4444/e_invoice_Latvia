@@ -261,7 +261,9 @@ def _invoke_addressee_operation(
     try:
         result = send_raw_envelope(call_cfg, envelope_xml)
     except requests.RequestException as exc:
-        return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
+        return JSONResponse(
+            {"ok": False, "error": str(exc), "http_status_client": 502}, status_code=502
+        )
 
     response_xml = result.get("response_xml") or ""
 
@@ -277,6 +279,7 @@ def _invoke_addressee_operation(
         "soap_action": soap_action,
         "saved_path": None,
         "filename": None,
+        "tls_debug": result.get("tls_debug"),
         **summary,
     }
 
