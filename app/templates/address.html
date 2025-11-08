@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Address Lists</h2>
+<p class="mb-4">Use the UnifiedService operations to download the addressee lists. The downloaded XML responses are stored in <code>{{ addresses_dir }}</code>.</p>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title">Initial Addressee Record List</h5>
+    <p class="card-text">Fetch the full addressee list by providing an authorization token.</p>
+    <div class="mb-3">
+      <label class="form-label" for="addr_token">Token</label>
+      <input id="addr_token" class="form-control" placeholder="Enter token">
+    </div>
+    <button id="addr_initial" class="btn btn-primary">Download initial list</button>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title">Incremental Addressee Record List</h5>
+    <p class="card-text">Request only the changes since a specific version.</p>
+    <div class="mb-3">
+      <label class="form-label" for="addr_version">Last version</label>
+      <input id="addr_version" class="form-control" type="number" min="0" step="1" placeholder="Enter last version">
+    </div>
+    <button id="addr_changed" class="btn btn-secondary">Download incremental list</button>
+  </div>
+</div>
+
+<div class="mb-3">
+  <label class="form-label" for="addr_endpoint">Service endpoint</label>
+  <input id="addr_endpoint" class="form-control" value="{{ cfg.endpoint }}" readonly>
+</div>
+
+<pre id="addr_result" hidden></pre>
+
+<script>
+(function(){
+  const resultBox = document.getElementById('addr_result');
+  const initialBtn = document.getElementById('addr_initial');
+  const changedBtn = document.getElementById('addr_changed');
+
+  function showResult(data){
+    resultBox.hidden = false;
+    resultBox.textContent = JSON.stringify(data, null, 2);
+  }
+
+  async function callEndpoint(url, formData, button){
+    button.disabled = true;
+    showResult({status: 'pending', note: 'Request in progress…'});
+    try {
+      const response = await fetch(url, {method: 'POST', body: formData});
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch(err){
+        data = {ok: false, error: 'Failed to parse server response', raw: text};
+      }
+      data.http_status_client = response.status;
+      showResult(data);
+    } catch(err){
+      showResult({ok: false, error: err.message || String(err)});
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  initialBtn.addEventListener('click', ()=>{
+    const token = document.getElementById('addr_token').value;
+    const fd = new FormData();
+    fd.append('token', token);
+    callEndpoint('/address/initial', fd, initialBtn);
+  });
+
+  changedBtn.addEventListener('click', ()=>{
+    const version = document.getElementById('addr_version').value;
+    const fd = new FormData();
+    fd.append('last_version', version);
+    callEndpoint('/address/changed', fd, changedBtn);
+  });
+})();
+</script>
+{% endblock %}
