@@ -4,7 +4,13 @@ WORKDIR /app
 
 # System deps for xmlsec
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libxml2 xmlsec1 xmlsec1-openssl ca-certificates curl openssl \
+    gcc \
+    libxml2-dev \
+    libxmlsec1-dev \
+    pkg-config \
+    ca-certificates \
+    curl \
+    openssl \
   && rm -rf /var/lib/apt/lists/*
 
 COPY app /app
