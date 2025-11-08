@@ -32,7 +32,10 @@
   <input id="addr_endpoint" class="form-control" value="{{ cfg.endpoint }}" readonly>
 </div>
 
-<pre id="addr_result" hidden></pre>
+<pre id="addr_result"
+     class="bg-dark text-light p-3 rounded small"
+     style="max-height: 360px; overflow-y: auto; font-family: monospace;"
+     hidden></pre>
 
 <script>
 (function(){
@@ -42,7 +45,43 @@
 
   function showResult(data){
     resultBox.hidden = false;
-    resultBox.textContent = JSON.stringify(data, null, 2);
+
+    if (!data) {
+      resultBox.textContent = "No response.";
+      return;
+    }
+
+    let summaryLines = [];
+
+    if (data.operation) {
+      summaryLines.push("Operation: " + data.operation);
+    }
+    if (typeof data.http_status !== "undefined") {
+      summaryLines.push("HTTP status: " + data.http_status);
+    }
+    if (typeof data.took_ms !== "undefined") {
+      summaryLines.push("Duration: " + data.took_ms + " ms");
+    }
+    if (data.addressee_count) {
+      summaryLines.push("Addressee records in this batch: " + data.addressee_count);
+    }
+    if (data.next_token) {
+      summaryLines.push("Next Token (for next page): " + data.next_token);
+    }
+    if (typeof data.max_version !== "undefined") {
+      summaryLines.push("MaxVersion (for delta): " + data.max_version);
+    }
+    if (data.filename) {
+      summaryLines.push("Saved XML: /data/addresses/" + data.filename);
+    }
+    if (data.error) {
+      summaryLines.push("Error: " + data.error);
+    }
+
+    const summary = summaryLines.join("\n");
+    const jsonPart = JSON.stringify(data, null, 2);
+
+    resultBox.textContent = summary + "\n\n--- Raw JSON ---\n" + jsonPart;
   }
 
   async function callEndpoint(url, formData, button){
@@ -67,7 +106,7 @@
   }
 
   initialBtn.addEventListener('click', ()=>{
-    const token = document.getElementById('addr_token').value;
+    const token = document.getElementById('addr_token').value.trim();
     const fd = new FormData();
     fd.append('token', token);
     callEndpoint('/address/initial', fd, initialBtn);
