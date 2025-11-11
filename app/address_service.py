@@ -6,6 +6,7 @@ import time
 import traceback
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import urlsplit, urlunsplit
 
@@ -16,8 +17,11 @@ from zeep.exceptions import Fault, TransportError
 from zeep.helpers import serialize_object
 from zeep.plugins import HistoryPlugin
 from zeep.transports import Transport
-from zeep.wsse.signature import Signature
 from zeep.wsse import utils as wsse_utils
+from zeep.wsse.signature import Signature
+
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
 
 from storage import load_config
 
@@ -85,7 +89,7 @@ class TimestampedSignature(LenientSignature):
         super().__init__(key_file, certfile)
         self.timestamp_ttl_seconds = max(int(timestamp_ttl_seconds), 1)
         self._last_timestamp_window: dict[str, str] | None = None
-        self._cert_b64 = self._extract_certificate_b64(certfile)
+        self._cert_b64 = self._extract_certificate_b64(certfile, key_file)
 
     def _build_timestamp(self) -> etree._Element:
         now = datetime.now(timezone.utc)
@@ -132,24 +136,76 @@ class TimestampedSignature(LenientSignature):
         return info
 
     @staticmethod
-    def _extract_certificate_b64(certfile: str) -> str | None:
+    def _extract_certificate_b64(certfile: str, key_file: str | None = None) -> str | None:
         try:
-            raw = open(certfile, "r", encoding="utf-8", errors="ignore").read()
+            raw_bytes = Path(certfile).read_bytes()
         except OSError:
             return None
 
-        match = re.search(
+        pem_text = raw_bytes.decode("utf-8", errors="ignore")
+        matches = re.findall(
             r"-----BEGIN CERTIFICATE-----\s*(.*?)\s*-----END CERTIFICATE-----",
-            raw,
+            pem_text,
             re.DOTALL,
         )
-        if not match:
+        if not matches:
             return None
 
-        body = match.group(1)
-        # Collapse whitespace and newlines to produce a clean Base64 payload.
-        payload = "".join(body.split())
-        return payload or None
+        certificates: list[tuple[x509.Certificate | None, str]] = []
+        for body in matches:
+            payload = "".join(body.split())
+            if not payload:
+                continue
+            pem = (
+                "-----BEGIN CERTIFICATE-----\n"
+                f"{body.strip()}\n"
+                "-----END CERTIFICATE-----\n"
+            )
+            try:
+                cert = x509.load_pem_x509_certificate(pem.encode("ascii"))
+            except Exception:
+                cert = None
+            certificates.append((cert, payload))
+
+        if not certificates:
+            return None
+
+        key_public_numbers = None
+        if key_file:
+            try:
+                key_bytes = Path(key_file).read_bytes()
+                private_key = serialization.load_pem_private_key(key_bytes, password=None)
+                key_public_numbers = private_key.public_key().public_numbers()
+            except Exception:
+                key_public_numbers = None
+
+        if key_public_numbers is not None:
+            for cert, payload in certificates:
+                if cert is None:
+                    continue
+                try:
+                    if cert.public_key().public_numbers() == key_public_numbers:
+                        return payload
+                except Exception:
+                    continue
+
+        for cert, payload in certificates:
+            if cert is None:
+                continue
+            try:
+                basic_constraints = cert.extensions.get_extension_for_class(
+                    x509.BasicConstraints
+                ).value
+            except x509.ExtensionNotFound:
+                return payload
+            except Exception:
+                continue
+
+            if not basic_constraints.ca:
+                return payload
+
+        # Fallback to the first certificate if nothing else matched.
+        return certificates[0][1]
 
     def _ensure_binary_security_token(self, security: etree._Element) -> None:
         if not self._cert_b64:
