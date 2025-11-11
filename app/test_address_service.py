@@ -357,6 +357,33 @@ def test_apply_adds_wsu_namespace_when_missing(monkeypatch):
     assert envelope.nsmap.get("wsu") == WSU
 
 
+def test_prepare_node_for_wsu_removes_redundant_namespace_prefixes():
+    envelope, soap_env = _make_envelope_with_wsa()
+    signer = TimestampedSignature.__new__(TimestampedSignature)
+
+    body = envelope.find(etree.QName(soap_env, "Body"))
+    assert body is not None
+
+    nodes = signer._iter_addressing_headers(envelope, soap_env)
+    nodes.append(body)
+
+    for node in nodes:
+        # Simulate lxml attaching a random namespace prefix on the element.
+        node.set(
+            etree.QName(address_service.XMLNS_NAMESPACE, "ns123"),
+            wsse_utils.ns.WSU,
+        )
+        signer._prepare_node_for_wsu(node)
+
+        for attr_name, value in node.attrib.items():
+            if not attr_name.startswith(
+                f"{{{address_service.XMLNS_NAMESPACE}}}"
+            ) or value != wsse_utils.ns.WSU:
+                continue
+
+            local = attr_name.split("}", 1)[1]
+            assert local == "wsu", f"Unexpected namespace prefix {local!r} on {node.tag}"
+
 def test_timestamped_signature_prefers_sha256(monkeypatch):
     if SimpleNamespace is None:  # pragma: no cover - defensive
         pytest.skip("SimpleNamespace unavailable")

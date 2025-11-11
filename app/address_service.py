@@ -121,7 +121,8 @@ class TimestampedSignature(LenientSignature):
         expires_text = wsse_utils.get_timestamp(timestamp=expires, zulu_timestamp=True)
 
         timestamp = wsse_utils.WSU.Timestamp()
-        timestamp.set(wsse_utils.ID_ATTR, wsse_utils.get_unique_id())
+        self._ensure_wsu_namespace(timestamp)
+        timestamp.set(etree.QName(wsse_utils.ns.WSU, "Id"), wsse_utils.get_unique_id())
         timestamp.append(wsse_utils.WSU.Created(created_text))
         timestamp.append(wsse_utils.WSU.Expires(expires_text))
 
@@ -370,6 +371,7 @@ class TimestampedSignature(LenientSignature):
                 "ValueType",
                 "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3",
             )
+            self._ensure_wsu_namespace(binary_token)
             binary_token.set(wsu_id_attr, token_id)
             binary_token.text = self._cert_b64
 
@@ -383,6 +385,7 @@ class TimestampedSignature(LenientSignature):
         else:
             # Make sure it has an Id
             if not binary_token.get(str(wsu_id_attr)):
+                self._ensure_wsu_namespace(binary_token)
                 binary_token.set(wsu_id_attr, wsse_utils.get_unique_id())
 
         bst_id = binary_token.get(str(wsu_id_attr))
@@ -416,6 +419,7 @@ class TimestampedSignature(LenientSignature):
             return
 
         self._ensure_wsu_prefix(node)
+        self._ensure_wsu_namespace(node)
 
         wsu_attr = etree.QName(wsse_utils.ns.WSU, "Id")
         attr_name = str(wsu_attr)
@@ -423,6 +427,15 @@ class TimestampedSignature(LenientSignature):
             node.set(wsu_attr, wsse_utils.get_unique_id())
 
         self._remove_redundant_wsu_namespace(node)
+
+    @staticmethod
+    def _ensure_wsu_namespace(node: etree._Element) -> None:
+        ns_uri = wsse_utils.ns.WSU
+        existing = node.nsmap.get("wsu") if hasattr(node, "nsmap") else None
+        if existing == ns_uri:
+            return
+
+        node.set(etree.QName(XMLNS_NAMESPACE, "wsu"), ns_uri)
 
     @staticmethod
     def _remove_redundant_wsu_namespace(node: etree._Element) -> None:
