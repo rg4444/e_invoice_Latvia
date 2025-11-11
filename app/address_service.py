@@ -148,7 +148,7 @@ class TimestampedSignature(LenientSignature):
         key = zeep_signature._make_sign_key(
             self.key_data, self.cert_data, self.password
         )
-        security, sec_token_ref = self._signature_prepare_with_addressing(
+        self._signature_prepare_with_addressing(
             envelope, key, self.signature_method, self.digest_method
         )
 
@@ -158,7 +158,7 @@ class TimestampedSignature(LenientSignature):
         key: Any,
         signature_method: Any,
         digest_method: Any,
-    ) -> tuple[etree._Element, etree._Element]:
+    ) -> None:
         soap_env = zeep_signature.detect_soap_env(envelope)
 
         signature_node = xmlsec.template.create(
@@ -187,11 +187,6 @@ class TimestampedSignature(LenientSignature):
             zeep_signature._sign_node(ctx, signature_node, header, digest_method)
 
         ctx.sign(signature_node)
-
-        sec_token_ref = etree.SubElement(
-            key_info, etree.QName(wsse_utils.ns.WSSE, "SecurityTokenReference")
-        )
-        return security, sec_token_ref
 
     @staticmethod
     def _iter_addressing_headers(
