@@ -1,4 +1,6 @@
 from copy import deepcopy
+from pathlib import Path
+import sys
 
 import pytest
 
@@ -9,9 +11,11 @@ except ImportError:  # pragma: no cover - Python < 3.3
 
 etree = pytest.importorskip("lxml.etree")
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import app.address_service as address_service
 
-from app.address_service import DS_NAMESPACE, TimestampedSignature
+from app.address_service import DS_NAMESPACE, TimestampedSignature, WSA_NAMESPACE
 from zeep.wsse import utils as wsse_utils
 
 
@@ -182,6 +186,139 @@ def test_certificate_selection_skips_self_signed_ca(monkeypatch, tmp_path):
 
     chosen = TimestampedSignature._extract_certificate_b64(str(pem_path), None)
     assert chosen == "LEAFCERT"
+
+
+def _make_envelope_with_wsa():
+    soap_env = "http://www.w3.org/2003/05/soap-envelope"
+    nsmap = {
+        "s": soap_env,
+        "wsse": WSSE,
+        "wsu": WSU,
+        "wsa": WSA_NAMESPACE,
+        "ds": DS_NAMESPACE,
+    }
+
+    envelope = etree.Element(etree.QName(soap_env, "Envelope"), nsmap=nsmap)
+    header = etree.SubElement(envelope, etree.QName(soap_env, "Header"))
+    etree.SubElement(header, etree.QName(WSA_NAMESPACE, "Action"))
+    etree.SubElement(header, etree.QName(WSA_NAMESPACE, "MessageID"))
+    etree.SubElement(header, etree.QName("http://example.com", "Ignored"))
+    etree.SubElement(header, etree.QName(WSA_NAMESPACE, "To"))
+    etree.SubElement(header, etree.QName(WSSE, "Security"))
+
+    etree.SubElement(envelope, etree.QName(soap_env, "Body"))
+    return envelope, soap_env
+
+
+def test_iter_addressing_headers_returns_wsa_nodes():
+    envelope, soap_env = _make_envelope_with_wsa()
+
+    nodes = TimestampedSignature._iter_addressing_headers(envelope, soap_env)
+    assert [etree.QName(node).localname for node in nodes] == [
+        "Action",
+        "MessageID",
+        "To",
+    ]
+
+
+def test_apply_signs_ws_addressing_headers(monkeypatch):
+    envelope, soap_env = _make_envelope_with_wsa()
+    header = envelope.find(etree.QName(soap_env, "Header"))
+    assert header is not None
+    security = header.find(f"{{{WSSE}}}Security")
+    assert security is not None
+
+    signer = TimestampedSignature.__new__(TimestampedSignature)
+    signer.key_data = b"key"
+    signer.cert_data = b"cert"
+    signer.password = None
+    signer.digest_method = None
+    signer.signature_method = None
+    signer.timestamp_ttl_seconds = 300
+    signer._cert_b64 = "CERT=="
+    signer._last_timestamp_window = None
+
+    signed_nodes = []
+    ensured_nodes = []
+
+    class _DummyTemplate:
+        @staticmethod
+        def create(envelope, _c14n, _method):
+            return etree.Element(etree.QName(DS_NAMESPACE, "Signature"))
+
+        @staticmethod
+        def ensure_key_info(signature):
+            return etree.SubElement(signature, etree.QName(DS_NAMESPACE, "KeyInfo"))
+
+        @staticmethod
+        def add_x509_data(key_info):
+            return etree.SubElement(key_info, etree.QName(DS_NAMESPACE, "X509Data"))
+
+        @staticmethod
+        def x509_data_add_issuer_serial(_x509_data):
+            return None
+
+        @staticmethod
+        def x509_data_add_certificate(_x509_data):
+            return None
+
+    class _DummySignatureContext:
+        def __init__(self):
+            self.key = None
+
+        def sign(self, _signature):
+            return None
+
+    dummy_xmlsec = SimpleNamespace(  # type: ignore[arg-type]
+        Transform=SimpleNamespace(EXCL_C14N="exc", RSA_SHA1="rsa"),
+        template=_DummyTemplate,
+        SignatureContext=_DummySignatureContext,
+    )
+
+    monkeypatch.setattr(address_service, "xmlsec", dummy_xmlsec, raising=False)
+    monkeypatch.setattr(
+        address_service.zeep_signature,
+        "_make_sign_key",
+        lambda *_args: object(),
+        raising=False,
+    )
+
+    def _capture_sign_node(ctx, signature, node, _digest):
+        assert ctx.key is not None
+        signed_nodes.append(node)
+
+    monkeypatch.setattr(
+        address_service.zeep_signature,
+        "_sign_node",
+        _capture_sign_node,
+        raising=False,
+    )
+
+    def _capture_ensure_id(node):
+        ensured_nodes.append(node)
+        node.set(etree.QName(WSU, "Id"), f"id-{len(ensured_nodes)}")
+
+    monkeypatch.setattr(
+        address_service.zeep_signature,
+        "ensure_id",
+        _capture_ensure_id,
+        raising=False,
+    )
+
+    signer.apply(envelope, headers={})
+
+    assert ensured_nodes
+    assert all(etree.QName(node).namespace == WSA_NAMESPACE for node in ensured_nodes)
+    assert len(ensured_nodes) == 3
+
+    signed_local_names = [etree.QName(node).localname for node in signed_nodes]
+    assert "Body" in signed_local_names
+    assert "Timestamp" in signed_local_names
+    assert sorted(name for name in signed_local_names if name in {"Action", "MessageID", "To"}) == [
+        "Action",
+        "MessageID",
+        "To",
+    ]
 
 
 def test_timestamped_signature_prefers_sha256(monkeypatch):

@@ -18,6 +18,7 @@ from zeep.helpers import serialize_object
 from zeep.plugins import HistoryPlugin
 from zeep.transports import Transport
 from zeep.wsse import utils as wsse_utils
+from zeep.wsse import signature as zeep_signature
 from zeep.wsse.signature import Signature
 
 try:  # pragma: no cover - exercised in integration environments
@@ -41,6 +42,8 @@ WSSE_NAMESPACE = (
 )
 
 DS_NAMESPACE = "http://www.w3.org/2000/09/xmldsig#"
+
+WSA_NAMESPACE = "http://www.w3.org/2005/08/addressing"
 
 
 def _find_security_header(
@@ -137,9 +140,76 @@ class TimestampedSignature(LenientSignature):
 
         security.insert(0, self._build_timestamp())
 
-        envelope, headers = super().apply(envelope, headers)
+        self._apply_signature(envelope)
         self._ensure_binary_security_token(security)
         return envelope, headers
+
+    def _apply_signature(self, envelope: etree._Element) -> None:
+        key = zeep_signature._make_sign_key(
+            self.key_data, self.cert_data, self.password
+        )
+        security, sec_token_ref, x509_data = self._signature_prepare_with_addressing(
+            envelope, key, self.signature_method, self.digest_method
+        )
+        sec_token_ref.append(x509_data)
+
+    def _signature_prepare_with_addressing(
+        self,
+        envelope: etree._Element,
+        key: Any,
+        signature_method: Any,
+        digest_method: Any,
+    ) -> tuple[etree._Element, etree._Element, etree._Element]:
+        soap_env = zeep_signature.detect_soap_env(envelope)
+
+        signature_node = xmlsec.template.create(
+            envelope,
+            xmlsec.Transform.EXCL_C14N,
+            signature_method or xmlsec.Transform.RSA_SHA1,
+        )
+
+        key_info = xmlsec.template.ensure_key_info(signature_node)
+        x509_data = xmlsec.template.add_x509_data(key_info)
+        xmlsec.template.x509_data_add_issuer_serial(x509_data)
+        xmlsec.template.x509_data_add_certificate(x509_data)
+
+        security = wsse_utils.get_security_header(envelope)
+        security.insert(0, signature_node)
+
+        ctx = xmlsec.SignatureContext()
+        ctx.key = key
+
+        body = envelope.find(etree.QName(soap_env, "Body"))
+        zeep_signature._sign_node(ctx, signature_node, body, digest_method)
+
+        timestamp = security.find(etree.QName(wsse_utils.ns.WSU, "Timestamp"))
+        if timestamp is not None:
+            zeep_signature._sign_node(ctx, signature_node, timestamp, digest_method)
+
+        for header in self._iter_addressing_headers(envelope, soap_env):
+            zeep_signature.ensure_id(header)
+            zeep_signature._sign_node(ctx, signature_node, header, digest_method)
+
+        ctx.sign(signature_node)
+
+        sec_token_ref = etree.SubElement(
+            key_info, etree.QName(wsse_utils.ns.WSSE, "SecurityTokenReference")
+        )
+        return security, sec_token_ref, x509_data
+
+    @staticmethod
+    def _iter_addressing_headers(
+        envelope: etree._Element, soap_env: str
+    ) -> list[etree._Element]:
+        header = envelope.find(etree.QName(soap_env, "Header"))
+        if header is None:
+            return []
+
+        nodes: list[etree._Element] = []
+        for child in header:
+            if etree.QName(child).namespace == WSA_NAMESPACE:
+                nodes.append(child)
+        return nodes
 
     def debug_summary(self) -> dict[str, object]:
         info: dict[str, object] = {
