@@ -189,20 +189,38 @@ class TimestampedSignature(LenientSignature):
                 except Exception:
                     continue
 
+        fallback_payload: str | None = None
+        leaf_candidates: list[str] = []
+
         for cert, payload in certificates:
             if cert is None:
+                if fallback_payload is None:
+                    fallback_payload = payload
                 continue
+
             try:
                 basic_constraints = cert.extensions.get_extension_for_class(
                     x509.BasicConstraints
                 ).value
+                is_ca = bool(getattr(basic_constraints, "ca", False))
             except x509.ExtensionNotFound:
-                return payload
+                # Treat self-signed certificates without explicit constraints as CA
+                is_ca = cert.issuer == cert.subject
             except Exception:
+                if fallback_payload is None:
+                    fallback_payload = payload
                 continue
 
-            if not basic_constraints.ca:
-                return payload
+            if not is_ca:
+                leaf_candidates.append(payload)
+            elif fallback_payload is None:
+                fallback_payload = payload
+
+        if leaf_candidates:
+            return leaf_candidates[0]
+
+        if fallback_payload is not None:
+            return fallback_payload
 
         # Fallback to the first certificate if nothing else matched.
         return certificates[0][1]
