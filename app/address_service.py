@@ -131,6 +131,8 @@ class TimestampedSignature(LenientSignature):
         return timestamp
 
     def apply(self, envelope, headers):  # type: ignore[override]
+        self._ensure_wsu_prefix(envelope)
+
         security = wsse_utils.get_security_header(envelope)
         timestamp_tag = f"{{{wsse_utils.ns.WSU}}}Timestamp"
 
@@ -143,6 +145,23 @@ class TimestampedSignature(LenientSignature):
         self._apply_signature(envelope)
         self._ensure_binary_security_token(security)
         return envelope, headers
+
+    @staticmethod
+    def _ensure_wsu_prefix(envelope: etree._Element | etree._ElementTree) -> None:
+        if isinstance(envelope, etree._ElementTree):  # pragma: no cover - defensive
+            root = envelope.getroot()
+        else:
+            root = envelope
+
+        if root is None:  # pragma: no cover - defensive
+            return
+
+        ns_uri = wsse_utils.ns.WSU
+        existing = root.nsmap.get("wsu") if hasattr(root, "nsmap") else None
+        if existing == ns_uri:
+            return
+
+        root.set(etree.QName("http://www.w3.org/2000/xmlns/", "wsu"), ns_uri)
 
     def _apply_signature(self, envelope: etree._Element) -> None:
         key = zeep_signature._make_sign_key(

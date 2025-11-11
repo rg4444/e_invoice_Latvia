@@ -188,15 +188,16 @@ def test_certificate_selection_skips_self_signed_ca(monkeypatch, tmp_path):
     assert chosen == "LEAFCERT"
 
 
-def _make_envelope_with_wsa():
+def _make_envelope_with_wsa(*, include_wsu: bool = True):
     soap_env = "http://www.w3.org/2003/05/soap-envelope"
     nsmap = {
         "s": soap_env,
         "wsse": WSSE,
-        "wsu": WSU,
         "wsa": WSA_NAMESPACE,
         "ds": DS_NAMESPACE,
     }
+    if include_wsu:
+        nsmap["wsu"] = WSU
 
     envelope = etree.Element(etree.QName(soap_env, "Envelope"), nsmap=nsmap)
     header = etree.SubElement(envelope, etree.QName(soap_env, "Header"))
@@ -319,6 +320,41 @@ def test_apply_signs_ws_addressing_headers(monkeypatch):
         "MessageID",
         "To",
     ]
+
+
+def test_apply_adds_wsu_namespace_when_missing(monkeypatch):
+    envelope, soap_env = _make_envelope_with_wsa(include_wsu=False)
+    header = envelope.find(etree.QName(soap_env, "Header"))
+    assert header is not None
+    security = header.find(f"{{{WSSE}}}Security")
+    assert security is not None
+
+    signer = TimestampedSignature.__new__(TimestampedSignature)
+    signer.key_data = b"key"
+    signer.cert_data = b"cert"
+    signer.password = None
+    signer.digest_method = None
+    signer.signature_method = None
+    signer.timestamp_ttl_seconds = 300
+    signer._cert_b64 = "CERT=="
+    signer._last_timestamp_window = None
+
+    monkeypatch.setattr(
+        TimestampedSignature,
+        "_apply_signature",
+        lambda self, env: None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        TimestampedSignature,
+        "_ensure_binary_security_token",
+        lambda self, sec: None,
+        raising=False,
+    )
+
+    signer.apply(envelope, headers={})
+
+    assert envelope.nsmap.get("wsu") == WSU
 
 
 def test_timestamped_signature_prefers_sha256(monkeypatch):
