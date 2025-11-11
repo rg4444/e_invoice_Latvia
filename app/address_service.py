@@ -121,7 +121,7 @@ class TimestampedSignature(LenientSignature):
         expires_text = wsse_utils.get_timestamp(timestamp=expires, zulu_timestamp=True)
 
         timestamp = wsse_utils.WSU.Timestamp()
-        self._ensure_wsu_namespace(timestamp)
+        timestamp = self._ensure_wsu_namespace(timestamp)
         timestamp.set(etree.QName(wsse_utils.ns.WSU, "Id"), wsse_utils.get_unique_id())
         timestamp.append(wsse_utils.WSU.Created(created_text))
         timestamp.append(wsse_utils.WSU.Expires(expires_text))
@@ -134,7 +134,9 @@ class TimestampedSignature(LenientSignature):
         return timestamp
 
     def apply(self, envelope, headers):  # type: ignore[override]
-        self._ensure_wsu_prefix(envelope)
+        envelope_root = self._ensure_wsu_prefix(envelope)
+        if isinstance(envelope_root, etree._Element):
+            envelope = envelope_root
 
         security = wsse_utils.get_security_header(envelope)
         timestamp_tag = f"{{{wsse_utils.ns.WSU}}}Timestamp"
@@ -149,8 +151,9 @@ class TimestampedSignature(LenientSignature):
         self._ensure_binary_security_token(security)
         return envelope, headers
 
-    @staticmethod
-    def _ensure_wsu_prefix(target: etree._Element | etree._ElementTree) -> None:
+    def _ensure_wsu_prefix(
+        self, target: etree._Element | etree._ElementTree
+    ) -> etree._Element | None:
         if isinstance(target, etree._ElementTree):  # pragma: no cover - defensive
             root = target.getroot()
         elif isinstance(target, etree._Element):
@@ -160,14 +163,9 @@ class TimestampedSignature(LenientSignature):
             root = None
 
         if root is None:  # pragma: no cover - defensive
-            return
+            return None
 
-        ns_uri = wsse_utils.ns.WSU
-        existing = root.nsmap.get("wsu") if hasattr(root, "nsmap") else None
-        if existing == ns_uri:
-            return
-
-        root.set(etree.QName(XMLNS_NAMESPACE, "wsu"), ns_uri)
+        return self._ensure_wsu_namespace(root)
 
     def _apply_signature(self, envelope: etree._Element) -> None:
         key = zeep_signature._make_sign_key(
@@ -201,17 +199,23 @@ class TimestampedSignature(LenientSignature):
         ctx.key = key
 
         body = envelope.find(etree.QName(soap_env, "Body"))
-        self._prepare_node_for_wsu(body)
-        zeep_signature._sign_node(ctx, signature_node, body, digest_method)
+        body = self._prepare_node_for_wsu(body)
+        if body is not None:
+            zeep_signature._sign_node(ctx, signature_node, body, digest_method)
 
         timestamp = security.find(etree.QName(wsse_utils.ns.WSU, "Timestamp"))
+        timestamp = self._prepare_node_for_wsu(timestamp)
         if timestamp is not None:
-            self._prepare_node_for_wsu(timestamp)
             zeep_signature._sign_node(ctx, signature_node, timestamp, digest_method)
 
         for header in self._iter_addressing_headers(envelope, soap_env):
-            self._prepare_node_for_wsu(header)
-            zeep_signature._sign_node(ctx, signature_node, header, digest_method)
+            prepared = self._prepare_node_for_wsu(header)
+            if prepared is not None:
+                try:
+                    zeep_signature.ensure_id(prepared)
+                except AttributeError:  # pragma: no cover - defensive
+                    pass
+                zeep_signature._sign_node(ctx, signature_node, prepared, digest_method)
 
         ctx.sign(signature_node)
 
@@ -371,9 +375,8 @@ class TimestampedSignature(LenientSignature):
                 "ValueType",
                 "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3",
             )
-            self._ensure_wsu_namespace(binary_token)
+            binary_token = self._prepare_node_for_wsu(binary_token)
             binary_token.set(wsu_id_attr, token_id)
-            binary_token.text = self._cert_b64
 
             # insert BST immediately before <ds:Signature>
             siblings = list(security)
@@ -383,10 +386,12 @@ class TimestampedSignature(LenientSignature):
                 index = 0
             security.insert(index, binary_token)
         else:
+            binary_token = self._prepare_node_for_wsu(binary_token)
             # Make sure it has an Id
             if not binary_token.get(str(wsu_id_attr)):
-                self._ensure_wsu_namespace(binary_token)
                 binary_token.set(wsu_id_attr, wsse_utils.get_unique_id())
+
+        binary_token.text = self._cert_b64
 
         bst_id = binary_token.get(str(wsu_id_attr))
         if not bst_id:
@@ -414,12 +419,12 @@ class TimestampedSignature(LenientSignature):
 
         self._remove_redundant_wsu_namespace(binary_token)
 
-    def _prepare_node_for_wsu(self, node: etree._Element | None) -> None:
+    def _prepare_node_for_wsu(self, node: etree._Element | None) -> etree._Element | None:
         if node is None:
-            return
+            return None
 
         self._ensure_wsu_prefix(node)
-        self._ensure_wsu_namespace(node)
+        node = self._ensure_wsu_namespace(node)
 
         wsu_attr = etree.QName(wsse_utils.ns.WSU, "Id")
         attr_name = str(wsu_attr)
@@ -427,15 +432,31 @@ class TimestampedSignature(LenientSignature):
             node.set(wsu_attr, wsse_utils.get_unique_id())
 
         self._remove_redundant_wsu_namespace(node)
+        return node
 
-    @staticmethod
-    def _ensure_wsu_namespace(node: etree._Element) -> None:
+    def _ensure_wsu_namespace(self, node: etree._Element) -> etree._Element:
         ns_uri = wsse_utils.ns.WSU
-        existing = node.nsmap.get("wsu") if hasattr(node, "nsmap") else None
-        if existing == ns_uri:
-            return
+        etree.register_namespace("wsu", ns_uri)
 
-        node.set(etree.QName(XMLNS_NAMESPACE, "wsu"), ns_uri)
+        nsmap = node.nsmap or {}
+        if nsmap.get("wsu") != ns_uri:
+            marker = etree.QName(ns_uri, "__wsu_marker__")
+            node.set(marker, "")
+            del node.attrib[str(marker)]
+
+        for attr_name in list(node.attrib):
+            qname = etree.QName(attr_name)
+            if qname.namespace != ns_uri or qname.localname == "__wsu_marker__":
+                continue
+
+            value = node.attrib[attr_name]
+            desired = etree.QName(ns_uri, qname.localname)
+            if attr_name != str(desired):
+                del node.attrib[attr_name]
+                node.set(desired, value)
+
+        self._remove_redundant_wsu_namespace(node)
+        return node
 
     @staticmethod
     def _remove_redundant_wsu_namespace(node: etree._Element) -> None:
