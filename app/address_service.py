@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+import traceback
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 from urllib.parse import urlsplit, urlunsplit
@@ -90,6 +91,7 @@ class AddressCallResult:
     endpoint: str
     soap_action: Optional[str]
     ws_security: Dict[str, Any]
+    transport_debug: Dict[str, Any]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -105,6 +107,7 @@ class AddressCallResult:
             "endpoint": self.endpoint,
             "soap_action": self.soap_action,
             "ws_security": self.ws_security,
+            "transport_debug": self.transport_debug,
         }
 
 
@@ -190,6 +193,57 @@ def _serialize_fault_detail(detail: Any) -> Optional[str]:
     return str(detail)
 
 
+def _collect_transport_debug(transport: CapturingTransport) -> Dict[str, Any]:
+    info: Dict[str, Any] = {}
+    response = transport.last_response
+    if response is None:
+        return info
+
+    status = getattr(response, "status_code", None)
+    if status is not None:
+        info["last_http_status"] = status
+
+    headers = getattr(response, "headers", None)
+    if headers:
+        try:
+            headers_dict = dict(headers)
+        except Exception:  # pragma: no cover - extremely defensive
+            headers_dict = {}
+        if headers_dict:
+            info["last_response_headers"] = headers_dict
+            content_type = headers_dict.get("Content-Type") or headers_dict.get("content-type")
+            if content_type:
+                info["last_content_type"] = content_type
+
+    request = getattr(response, "request", None)
+    if request is not None:
+        url = getattr(request, "url", None)
+        if url:
+            info["last_request_url"] = url
+
+    elapsed = getattr(response, "elapsed", None)
+    if elapsed is not None:
+        try:
+            info["last_request_elapsed_ms"] = int(elapsed.total_seconds() * 1000)
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    preview = ""
+    body_bytes = None
+    try:
+        body_bytes = response.content
+    except Exception:  # pragma: no cover - defensive
+        body_bytes = None
+
+    if body_bytes:
+        preview = body_bytes[:1024]
+        if isinstance(preview, bytes):
+            preview = preview.decode("utf-8", "replace")
+        info["last_response_preview"] = preview
+
+    return info
+
+
 def create_unified_client() -> tuple[Client, Any, CapturingTransport, HistoryPlugin, UnifiedServiceConfig]:
     config = get_unified_config()
 
@@ -236,6 +290,7 @@ def call_unified_operation(operation: str, **params: Any) -> AddressCallResult:
     fault_message: Optional[str] = None
     fault_code: Optional[str] = None
     fault_detail: Optional[str] = None
+    exception_info: Optional[dict[str, Any]] = None
 
     try:
         result_obj = method(**params)
@@ -250,7 +305,18 @@ def call_unified_operation(operation: str, **params: Any) -> AddressCallResult:
         status = getattr(exc, "status_code", None)
         raise UnifiedServiceError(f"Transport error{f' ({status})' if status else ''}: {exc.message}") from exc
     except Exception as exc:  # pragma: no cover - defensive logging path
-        raise UnifiedServiceError(str(exc)) from exc
+        ok = False
+        result_obj = None
+        fault_message = f"Unexpected error invoking {operation}: {exc}"
+        fault_code = getattr(exc, "code", None)
+        fault_detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        if len(fault_detail) > 4000:
+            fault_detail = fault_detail[:4000] + "... (truncated)"
+        exception_info = {
+            "type": type(exc).__name__,
+            "message": str(exc),
+            "traceback": fault_detail,
+        }
     finally:
         took_ms = int((time.perf_counter() - started) * 1000)
 
@@ -270,6 +336,10 @@ def call_unified_operation(operation: str, **params: Any) -> AddressCallResult:
 
     serialized = _serialize_result(result_obj if ok else None)
 
+    transport_debug = _collect_transport_debug(transport)
+    if exception_info:
+        transport_debug.setdefault("exception", exception_info)
+
     return AddressCallResult(
         ok=ok,
         http_status=status_code,
@@ -283,6 +353,7 @@ def call_unified_operation(operation: str, **params: Any) -> AddressCallResult:
         endpoint=config.endpoint,
         soap_action=soap_action,
         ws_security=_build_security_summary(config),
+        transport_debug=transport_debug,
     )
 
 
