@@ -19,6 +19,56 @@ from zeep.wsse.signature import Signature
 from storage import load_config
 
 
+SOAP_ENV_NAMESPACES = (
+    "http://schemas.xmlsoap.org/soap/envelope/",
+    "http://www.w3.org/2003/05/soap-envelope",
+)
+
+WSSE_NAMESPACE = (
+    "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
+)
+
+DS_NAMESPACE = "http://www.w3.org/2000/09/xmldsig#"
+
+
+def _find_security_header(
+    envelope: etree._Element | etree._ElementTree,
+) -> Optional[etree._Element]:
+    """Return the wsse:Security header element if present."""
+
+    if envelope is None:
+        return None
+
+    if isinstance(envelope, etree._ElementTree):  # pragma: no cover - defensive
+        envelope = envelope.getroot()
+        if envelope is None:
+            return None
+
+    for ns in SOAP_ENV_NAMESPACES:
+        header = envelope.find(f"{{{ns}}}Header")
+        if header is None:
+            continue
+        security = header.find(f"{{{WSSE_NAMESPACE}}}Security")
+        if security is not None:
+            return security
+
+    return None
+
+
+class LenientSignature(Signature):
+    """Signature handler that skips verification when the response is unsigned."""
+
+    def verify(self, envelope: etree._Element) -> None:  # type: ignore[override]
+        security = _find_security_header(envelope)
+        if security is None:
+            return
+
+        if security.find(f"{{{DS_NAMESPACE}}}Signature") is None:
+            return
+
+        super().verify(envelope)
+
+
 class UnifiedServiceError(Exception):
     """Raised when the UnifiedService call cannot be completed."""
 
@@ -258,7 +308,7 @@ def create_unified_client() -> tuple[Client, Any, CapturingTransport, HistoryPlu
     settings = Settings(strict=False, xml_huge_tree=True)
     history = HistoryPlugin()
 
-    wsse = Signature(config.client_key, config.client_cert)
+    wsse = LenientSignature(config.client_key, config.client_cert)
 
     client = Client(
         wsdl=config.wsdl_url,
