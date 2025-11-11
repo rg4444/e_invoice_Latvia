@@ -262,19 +262,22 @@ class TimestampedSignature(LenientSignature):
 
         key_info = signature.find(key_info_tag)
         if key_info is None:
-            return
+            key_info = etree.SubElement(signature, etree.QName(DS_NAMESPACE, "KeyInfo"))
 
-        sec_token_ref = key_info.find(str_tag)
-        if sec_token_ref is None:
-            sec_token_ref = etree.SubElement(
-                key_info, etree.QName(wsse_utils.ns.WSSE, "SecurityTokenReference")
-            )
+        # Remove any existing child nodes (typically ds:X509Data) so the server does not
+        # attempt to resolve the certificate from them. Some Latvian services strictly
+        # require a SecurityTokenReference that points to the BinarySecurityToken.
+        for child in list(key_info):
+            key_info.remove(child)
 
-        for child in list(sec_token_ref):
-            sec_token_ref.remove(child)
+        sec_token_ref = etree.SubElement(
+            key_info, etree.QName(wsse_utils.ns.WSSE, "SecurityTokenReference")
+        )
 
-        reference = etree.SubElement(sec_token_ref, etree.QName(wsse_utils.ns.WSSE, "Reference"))
         bst_id = binary_token.get(str(wsu_id_attr), token_id)
+        reference = etree.SubElement(
+            sec_token_ref, etree.QName(wsse_utils.ns.WSSE, "Reference")
+        )
         reference.set("URI", f"#{bst_id}")
         reference.set(
             "ValueType",
