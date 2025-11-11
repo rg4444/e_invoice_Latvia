@@ -17,7 +17,7 @@ COPY app /app
 
 RUN pip install --no-cache-dir \
     fastapi uvicorn[standard] jinja2 requests lxml python-dotenv \
-    zeep xmlsec python-multipart itsdangerous
+    zeep xmlsec python-multipart itsdangerous cryptography
 
 EXPOSE 9595
 ENV PYTHONUNBUFFERED=1
