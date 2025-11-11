@@ -20,6 +20,11 @@ from zeep.transports import Transport
 from zeep.wsse import utils as wsse_utils
 from zeep.wsse.signature import Signature
 
+try:  # pragma: no cover - exercised in integration environments
+    import xmlsec
+except ImportError:  # pragma: no cover - xmlsec is optional during testing
+    xmlsec = None  # type: ignore[assignment]
+
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 
@@ -86,7 +91,19 @@ class TimestampedSignature(LenientSignature):
         *,
         timestamp_ttl_seconds: int = 300,
     ) -> None:
-        super().__init__(key_file, certfile)
+        signature_method = None
+        digest_method = None
+
+        if xmlsec is not None:
+            signature_method = getattr(xmlsec.Transform, "RSA_SHA256", None)
+            digest_method = getattr(xmlsec.Transform, "SHA256", None)
+
+        super().__init__(
+            key_file,
+            certfile,
+            signature_method=signature_method,
+            digest_method=digest_method,
+        )
         self.timestamp_ttl_seconds = max(int(timestamp_ttl_seconds), 1)
         self._last_timestamp_window: dict[str, str] | None = None
         self._cert_b64 = self._extract_certificate_b64(certfile, key_file)
@@ -133,6 +150,15 @@ class TimestampedSignature(LenientSignature):
             info["last_timestamp_window"] = dict(self._last_timestamp_window)
         if self._cert_b64:
             info["binary_security_token"] = True
+        if xmlsec is not None:
+            if getattr(self, "signature_method", None) == getattr(
+                xmlsec.Transform, "RSA_SHA256", None
+            ):
+                info["signature_method"] = "RSA_SHA256"
+            if getattr(self, "digest_method", None) == getattr(
+                xmlsec.Transform, "SHA256", None
+            ):
+                info["digest_method"] = "SHA256"
         return info
 
     @staticmethod
