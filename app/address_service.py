@@ -4,6 +4,7 @@ import os
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+from urllib.parse import urlsplit, urlunsplit
 
 from lxml import etree
 from requests import Session
@@ -29,6 +30,32 @@ class UnifiedServiceConfig:
     client_key: str
     ca_bundle: Optional[str]
     verify_tls: bool
+
+
+DEFAULT_UNIFIED_ENDPOINT = (
+    "https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterface/UnifiedService.svc"
+)
+
+
+def _derive_endpoint_and_wsdl(raw_endpoint: str) -> tuple[str, str]:
+    """Return the SOAP execution endpoint and matching WSDL URL."""
+
+    endpoint = (raw_endpoint or DEFAULT_UNIFIED_ENDPOINT).strip()
+    if not endpoint:
+        endpoint = DEFAULT_UNIFIED_ENDPOINT
+
+    parsed = urlsplit(endpoint)
+
+    # Always call the service without query/fragment to avoid hitting ?wsdl URLs.
+    call_endpoint = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+
+    query = (parsed.query or "").strip()
+    if query:
+        wsdl_url = endpoint
+    else:
+        wsdl_url = endpoint if endpoint.lower().endswith("?wsdl") else endpoint + "?wsdl"
+
+    return call_endpoint, wsdl_url
 
 
 class CapturingTransport(Transport):
@@ -98,8 +125,8 @@ def _ensure_file(path: Optional[str], label: str) -> str:
 
 def get_unified_config() -> UnifiedServiceConfig:
     cfg = load_config()
-    endpoint = (cfg.get("endpoint") or "https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterface/UnifiedService.svc").strip()
-    wsdl_url = endpoint + ("?wsdl" if not endpoint.endswith("?wsdl") else "")
+    endpoint_raw = cfg.get("endpoint") or DEFAULT_UNIFIED_ENDPOINT
+    endpoint, wsdl_url = _derive_endpoint_and_wsdl(endpoint_raw)
 
     client_cert = _ensure_file(_normalize_path(cfg.get("client_cert")), "Client certificate")
     client_key = _ensure_file(_normalize_path(cfg.get("client_key")), "Client private key")
