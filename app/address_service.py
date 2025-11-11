@@ -148,10 +148,9 @@ class TimestampedSignature(LenientSignature):
         key = zeep_signature._make_sign_key(
             self.key_data, self.cert_data, self.password
         )
-        security, sec_token_ref, x509_data = self._signature_prepare_with_addressing(
+        security, sec_token_ref = self._signature_prepare_with_addressing(
             envelope, key, self.signature_method, self.digest_method
         )
-        sec_token_ref.append(x509_data)
 
     def _signature_prepare_with_addressing(
         self,
@@ -159,7 +158,7 @@ class TimestampedSignature(LenientSignature):
         key: Any,
         signature_method: Any,
         digest_method: Any,
-    ) -> tuple[etree._Element, etree._Element, etree._Element]:
+    ) -> tuple[etree._Element, etree._Element]:
         soap_env = zeep_signature.detect_soap_env(envelope)
 
         signature_node = xmlsec.template.create(
@@ -169,9 +168,6 @@ class TimestampedSignature(LenientSignature):
         )
 
         key_info = xmlsec.template.ensure_key_info(signature_node)
-        x509_data = xmlsec.template.add_x509_data(key_info)
-        xmlsec.template.x509_data_add_issuer_serial(x509_data)
-        xmlsec.template.x509_data_add_certificate(x509_data)
 
         security = wsse_utils.get_security_header(envelope)
         security.insert(0, signature_node)
@@ -195,7 +191,7 @@ class TimestampedSignature(LenientSignature):
         sec_token_ref = etree.SubElement(
             key_info, etree.QName(wsse_utils.ns.WSSE, "SecurityTokenReference")
         )
-        return security, sec_token_ref, x509_data
+        return security, sec_token_ref
 
     @staticmethod
     def _iter_addressing_headers(
