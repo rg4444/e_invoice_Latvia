@@ -204,19 +204,31 @@ def _parse_addressee_summary(response_xml: str) -> dict:
     except Exception:
         return {}
 
-    entries = root.findall(".//*[contains(local-name(), 'Addressee')]")
+    def _xpath(expr: str):
+        try:
+            return root.xpath(expr)
+        except etree.XPathError:
+            return []
+
+    entries = [node for node in _xpath(".//*[contains(local-name(), 'Addressee')]") if isinstance(node, etree._Element)]
     count = len(entries)
 
     next_token = None
-    for cand in root.findall(".//*[contains(local-name(), 'Token')]"):
-        txt = (cand.text or "").strip()
+    for cand in _xpath(".//*[contains(local-name(), 'Token')]"):
+        if isinstance(cand, etree._Element):
+            txt = (cand.text or "").strip()
+        else:
+            txt = str(cand).strip()
         if txt:
             next_token = txt
             break
 
     max_version = None
-    for cand in root.findall(".//*[contains(local-name(), 'Version')]"):
-        txt = (cand.text or "").strip()
+    for cand in _xpath(".//*[contains(local-name(), 'Version')]"):
+        if isinstance(cand, etree._Element):
+            txt = (cand.text or "").strip()
+        else:
+            txt = str(cand).strip()
         if txt.isdigit():
             v = int(txt)
             if max_version is None or v > max_version:
@@ -267,6 +279,16 @@ def _extract_fault_info(response_xml: str) -> dict[str, str]:
     if reason:
         out["soap_fault_reason"] = reason
     return out
+
+
+def _json_safe(value):
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(v) for v in value]
+    return str(value)
 
 
 def _invoke_addressee_operation(
@@ -371,7 +393,9 @@ def _invoke_addressee_operation(
             fh.write(response_xml)
         payload.update({"saved_path": full_path, "filename": filename})
 
-    return JSONResponse(payload)
+    safe_payload = _json_safe(payload)
+
+    return JSONResponse(safe_payload)
 
 @app.get("/schematron/list")
 def schematron_list():
