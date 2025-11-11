@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import pytest
 
 etree = pytest.importorskip("lxml.etree")
@@ -51,3 +53,26 @@ def test_binary_security_token_reference_replaced_with_wsse_reference():
         reference.get("ValueType")
         == "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3"
     )
+
+
+def test_duplicate_key_info_nodes_removed_before_replacement():
+    security = _make_security_tree()
+
+    signature = security.find(f"{{{DS_NAMESPACE}}}Signature")
+    assert signature is not None
+
+    # Simulate zeep emitting multiple KeyInfo nodes by cloning the existing one.
+    key_info = signature.find(f"{{{DS_NAMESPACE}}}KeyInfo")
+    assert key_info is not None
+    signature.append(deepcopy(key_info))
+
+    signer = TimestampedSignature.__new__(TimestampedSignature)
+    signer._cert_b64 = "CERTDATA=="
+
+    signer._ensure_binary_security_token(security)
+
+    key_infos = signature.findall(f"{{{DS_NAMESPACE}}}KeyInfo")
+    assert len(key_infos) == 1
+
+    sec_token_ref = key_infos[0].find(f"{{{WSSE}}}SecurityTokenReference")
+    assert sec_token_ref is not None

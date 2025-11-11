@@ -214,9 +214,6 @@ class TimestampedSignature(LenientSignature):
         token_tag = f"{{{wsse_utils.ns.WSSE}}}BinarySecurityToken"
         wsu_id_attr = etree.QName(wsse_utils.ns.WSU, "Id")
         signature_tag = f"{{{DS_NAMESPACE}}}Signature"
-        key_info_tag = f"{{{DS_NAMESPACE}}}KeyInfo"
-        str_tag = f"{{{wsse_utils.ns.WSSE}}}SecurityTokenReference"
-
         token_id = wsse_utils.get_unique_id()
         existing_token = None
 
@@ -260,15 +257,21 @@ class TimestampedSignature(LenientSignature):
         if signature is None:
             return
 
-        key_info = signature.find(key_info_tag)
-        if key_info is None:
-            key_info = etree.SubElement(signature, etree.QName(DS_NAMESPACE, "KeyInfo"))
+        key_info_path = f"{{{DS_NAMESPACE}}}KeyInfo"
 
-        # Remove any existing child nodes (typically ds:X509Data) so the server does not
-        # attempt to resolve the certificate from them. Some Latvian services strictly
-        # require a SecurityTokenReference that points to the BinarySecurityToken.
-        for child in list(key_info):
-            key_info.remove(child)
+        # The zeep signer injects one or more <ds:KeyInfo> elements containing
+        # <ds:X509Data>.  A few Unified Interface endpoints insist on resolving the
+        # signing certificate exclusively through a wsse:SecurityTokenReference that
+        # points to the BinarySecurityToken.  When multiple KeyInfo nodes are present
+        # (for example, because zeep duplicates them while processing policies), the
+        # service can stumble over the first node and ignore the reference we add.
+        #
+        # To guarantee a single, clean <ds:KeyInfo>, remove all existing ones and
+        # append a fresh element that only contains the SecurityTokenReference.
+        for existing_key_info in signature.findall(key_info_path):
+            signature.remove(existing_key_info)
+
+        key_info = etree.SubElement(signature, etree.QName(DS_NAMESPACE, "KeyInfo"))
 
         sec_token_ref = etree.SubElement(
             key_info, etree.QName(wsse_utils.ns.WSSE, "SecurityTokenReference")
