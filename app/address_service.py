@@ -313,77 +313,69 @@ class TimestampedSignature(LenientSignature):
         return certificates[0][1]
 
     def _ensure_binary_security_token(self, security: etree._Element) -> None:
+        # If we don't have a certificate loaded, do nothing
         if not self._cert_b64:
             return
 
-        token_tag = f"{{{wsse_utils.ns.WSSE}}}BinarySecurityToken"
-        wsu_id_attr = etree.QName(wsse_utils.ns.WSU, "Id")
-        signature_tag = f"{{{DS_NAMESPACE}}}Signature"
-        token_id = wsse_utils.get_unique_id()
-        existing_token = None
+        wsse_ns = wsse_utils.ns.WSSE
+        wsu_ns = wsse_utils.ns.WSU
+        ds_ns = DS_NAMESPACE
 
-        for child in security:
-            if child.tag == token_tag:
-                existing_token = child
-                break
+        token_tag = f"{{{wsse_ns}}}BinarySecurityToken"
+        signature_tag = f"{{{ds_ns}}}Signature"
+        wsu_id_attr = etree.QName(wsu_ns, "Id")
 
-        if existing_token is None:
-            bst = wsse_utils.WSSE.BinarySecurityToken()
-            bst.set(
-                "EncodingType",
-                "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary",
-            )
-            bst.set(
-                "ValueType",
-                "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3",
-            )
-            bst.set(wsu_id_attr, token_id)
-            bst.text = self._cert_b64
-
-            signature = security.find(signature_tag)
-            if signature is not None:
-                siblings = list(security)
-                try:
-                    index = siblings.index(signature)
-                except ValueError:
-                    index = 0
-                security.insert(index, bst)
-            else:
-                security.append(bst)
-            binary_token = bst
-        else:
-            binary_token = existing_token
-            if not binary_token.get(str(wsu_id_attr)):
-                binary_token.set(wsu_id_attr, token_id)
-            # leave text if already present
-
+        # Find the ds:Signature we just created
         signature = security.find(signature_tag)
         if signature is None:
             return
 
-        key_info_path = f"{{{DS_NAMESPACE}}}KeyInfo"
+        # Ensure there is a wsse:BinarySecurityToken BEFORE the Signature
+        binary_token = security.find(token_tag)
+        if binary_token is None:
+            token_id = wsse_utils.get_unique_id()
 
-        # The zeep signer injects one or more <ds:KeyInfo> elements containing
-        # <ds:X509Data>.  A few Unified Interface endpoints insist on resolving the
-        # signing certificate exclusively through a wsse:SecurityTokenReference that
-        # points to the BinarySecurityToken.  When multiple KeyInfo nodes are present
-        # (for example, because zeep duplicates them while processing policies), the
-        # service can stumble over the first node and ignore the reference we add.
-        #
-        # To guarantee a single, clean <ds:KeyInfo>, remove all existing ones and
-        # append a fresh element that only contains the SecurityTokenReference.
-        for existing_key_info in signature.findall(key_info_path):
-            signature.remove(existing_key_info)
+            binary_token = wsse_utils.WSSE.BinarySecurityToken()
+            binary_token.set(
+                "EncodingType",
+                "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary",
+            )
+            binary_token.set(
+                "ValueType",
+                "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3",
+            )
+            binary_token.set(wsu_id_attr, token_id)
+            binary_token.text = self._cert_b64
 
-        key_info = etree.SubElement(signature, etree.QName(DS_NAMESPACE, "KeyInfo"))
+            # insert BST immediately before <ds:Signature>
+            siblings = list(security)
+            try:
+                index = siblings.index(signature)
+            except ValueError:
+                index = 0
+            security.insert(index, binary_token)
+        else:
+            # Make sure it has an Id
+            if not binary_token.get(str(wsu_id_attr)):
+                binary_token.set(wsu_id_attr, wsse_utils.get_unique_id())
 
+        bst_id = binary_token.get(str(wsu_id_attr))
+        if not bst_id:
+            return
+
+        # Remove ALL existing ds:KeyInfo children under this Signature
+        for child in list(signature):
+            q = etree.QName(child)
+            if q.namespace == ds_ns and q.localname == "KeyInfo":
+                signature.remove(child)
+
+        # Add ONE clean ds:KeyInfo with wsse:SecurityTokenReference to BST
+        key_info = etree.SubElement(signature, etree.QName(ds_ns, "KeyInfo"))
         sec_token_ref = etree.SubElement(
-            key_info, etree.QName(wsse_utils.ns.WSSE, "SecurityTokenReference")
+            key_info, etree.QName(wsse_ns, "SecurityTokenReference")
         )
-
-        bst_id = binary_token.get(str(wsu_id_attr), token_id)
         reference = etree.SubElement(
-            sec_token_ref, etree.QName(wsse_utils.ns.WSSE, "Reference")
+            sec_token_ref, etree.QName(wsse_ns, "Reference")
         )
         reference.set("URI", f"#{bst_id}")
         reference.set(
