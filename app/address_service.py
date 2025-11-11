@@ -45,6 +45,8 @@ DS_NAMESPACE = "http://www.w3.org/2000/09/xmldsig#"
 
 WSA_NAMESPACE = "http://www.w3.org/2005/08/addressing"
 
+XMLNS_NAMESPACE = "http://www.w3.org/2000/xmlns/"
+
 
 def _find_security_header(
     envelope: etree._Element | etree._ElementTree,
@@ -147,11 +149,14 @@ class TimestampedSignature(LenientSignature):
         return envelope, headers
 
     @staticmethod
-    def _ensure_wsu_prefix(envelope: etree._Element | etree._ElementTree) -> None:
-        if isinstance(envelope, etree._ElementTree):  # pragma: no cover - defensive
-            root = envelope.getroot()
-        else:
-            root = envelope
+    def _ensure_wsu_prefix(target: etree._Element | etree._ElementTree) -> None:
+        if isinstance(target, etree._ElementTree):  # pragma: no cover - defensive
+            root = target.getroot()
+        elif isinstance(target, etree._Element):
+            tree = target.getroottree()
+            root = tree.getroot() if tree is not None else target
+        else:  # pragma: no cover - defensive
+            root = None
 
         if root is None:  # pragma: no cover - defensive
             return
@@ -161,7 +166,7 @@ class TimestampedSignature(LenientSignature):
         if existing == ns_uri:
             return
 
-        root.set(etree.QName("http://www.w3.org/2000/xmlns/", "wsu"), ns_uri)
+        root.set(etree.QName(XMLNS_NAMESPACE, "wsu"), ns_uri)
 
     def _apply_signature(self, envelope: etree._Element) -> None:
         key = zeep_signature._make_sign_key(
@@ -195,14 +200,16 @@ class TimestampedSignature(LenientSignature):
         ctx.key = key
 
         body = envelope.find(etree.QName(soap_env, "Body"))
+        self._prepare_node_for_wsu(body)
         zeep_signature._sign_node(ctx, signature_node, body, digest_method)
 
         timestamp = security.find(etree.QName(wsse_utils.ns.WSU, "Timestamp"))
         if timestamp is not None:
+            self._prepare_node_for_wsu(timestamp)
             zeep_signature._sign_node(ctx, signature_node, timestamp, digest_method)
 
         for header in self._iter_addressing_headers(envelope, soap_env):
-            zeep_signature.ensure_id(header)
+            self._prepare_node_for_wsu(header)
             zeep_signature._sign_node(ctx, signature_node, header, digest_method)
 
         ctx.sign(signature_node)
@@ -401,6 +408,35 @@ class TimestampedSignature(LenientSignature):
             "ValueType",
             "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3",
         )
+
+        self._remove_redundant_wsu_namespace(binary_token)
+
+    def _prepare_node_for_wsu(self, node: etree._Element | None) -> None:
+        if node is None:
+            return
+
+        self._ensure_wsu_prefix(node)
+
+        wsu_attr = etree.QName(wsse_utils.ns.WSU, "Id")
+        attr_name = str(wsu_attr)
+        if not node.get(attr_name):
+            node.set(wsu_attr, wsse_utils.get_unique_id())
+
+        self._remove_redundant_wsu_namespace(node)
+
+    @staticmethod
+    def _remove_redundant_wsu_namespace(node: etree._Element) -> None:
+        ns_uri = wsse_utils.ns.WSU
+        for attr_name in list(node.attrib):
+            if not attr_name.startswith(f"{{{XMLNS_NAMESPACE}}}"):
+                continue
+
+            local_name = attr_name.split("}", 1)[1]
+            if local_name == "wsu":
+                continue
+
+            if node.attrib[attr_name] == ns_uri:
+                del node.attrib[attr_name]
 
 
 class UnifiedServiceError(Exception):
