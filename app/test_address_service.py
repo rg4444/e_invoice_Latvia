@@ -4,6 +4,8 @@ import pytest
 
 etree = pytest.importorskip("lxml.etree")
 
+import app.address_service as address_service
+
 from app.address_service import DS_NAMESPACE, TimestampedSignature
 from zeep.wsse import utils as wsse_utils
 
@@ -76,3 +78,116 @@ def test_duplicate_key_info_nodes_removed_before_replacement():
 
     sec_token_ref = key_infos[0].find(f"{{{WSSE}}}SecurityTokenReference")
     assert sec_token_ref is not None
+
+
+class _DummyKey:
+    def __init__(self, marker: str) -> None:
+        self.marker = marker
+
+    def public_numbers(self):
+        return ("dummy", self.marker)
+
+
+class _DummyBasicConstraints:
+    def __init__(self, ca: bool) -> None:
+        self.ca = ca
+
+
+class _DummyExtension:
+    def __init__(self, ca: bool) -> None:
+        self.value = _DummyBasicConstraints(ca)
+
+
+class _DummyExtensions:
+    def __init__(self, ca: bool | None, exc_type):
+        self._ca = ca
+        self._exc_type = exc_type
+
+    def get_extension_for_class(self, _cls):
+        if self._ca is None:
+            raise self._exc_type()
+        return _DummyExtension(self._ca)
+
+
+class _DummyCert:
+    def __init__(self, marker: str, *, ca: bool | None, self_signed: bool) -> None:
+        self._marker = marker
+        self.subject = marker
+        self.issuer = marker if self_signed else f"issuer-{marker}"
+        self._ca = ca
+
+    def public_key(self):
+        return _DummyKey(self._marker)
+
+    @property
+    def extensions(self):
+        return _DummyExtensions(self._ca, _DummyX509.ExtensionNotFound)
+
+
+class _DummyX509:
+    class ExtensionNotFound(Exception):
+        pass
+
+    BasicConstraints = object
+
+    mapping: dict[str, _DummyCert] = {}
+
+    @staticmethod
+    def load_pem_x509_certificate(data: bytes):
+        text = data.decode()
+        for marker, cert in _DummyX509.mapping.items():
+            if marker in text:
+                return cert
+        raise AssertionError(f"Unexpected certificate content: {text!r}")
+
+
+def _write_chain(tmp_path, *bodies: str):
+    chain = "".join(
+        f"-----BEGIN CERTIFICATE-----\n{body}\n-----END CERTIFICATE-----\n" for body in bodies
+    )
+    path = tmp_path / "chain.pem"
+    path.write_text(chain)
+    return path
+
+
+def _patch_crypto(monkeypatch, mapping):
+    _DummyX509.mapping = mapping
+    monkeypatch.setattr(address_service, "x509", _DummyX509, raising=False)
+
+    def fake_load_private_key(*_args, **_kwargs):
+        raise ValueError("encrypted key")
+
+    monkeypatch.setattr(
+        address_service.serialization,
+        "load_pem_private_key",
+        fake_load_private_key,
+        raising=False,
+    )
+
+
+def test_certificate_selection_skips_self_signed_ca(monkeypatch, tmp_path):
+    pem_path = _write_chain(tmp_path, "ROOTCERT", "LEAFCERT")
+
+    mapping = {
+        "ROOTCERT": _DummyCert("ROOTCERT", ca=None, self_signed=True),
+        "LEAFCERT": _DummyCert("LEAFCERT", ca=False, self_signed=False),
+    }
+
+    _patch_crypto(monkeypatch, mapping)
+
+    chosen = TimestampedSignature._extract_certificate_b64(str(pem_path), None)
+    assert chosen == "LEAFCERT"
+
+
+def test_certificate_selection_handles_leaf_without_constraints(monkeypatch, tmp_path):
+    pem_path = _write_chain(tmp_path, "ROOTCERT", "LEAFCERT")
+
+    mapping = {
+        "ROOTCERT": _DummyCert("ROOTCERT", ca=True, self_signed=True),
+        "LEAFCERT": _DummyCert("LEAFCERT", ca=None, self_signed=False),
+    }
+
+    _patch_crypto(monkeypatch, mapping)
+
+    chosen = TimestampedSignature._extract_certificate_b64(str(pem_path), None)
+    assert chosen == "LEAFCERT"
