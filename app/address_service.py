@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 import traceback
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 from urllib.parse import urlsplit, urlunsplit
@@ -15,6 +16,7 @@ from zeep.helpers import serialize_object
 from zeep.plugins import HistoryPlugin
 from zeep.transports import Transport
 from zeep.wsse.signature import Signature
+from zeep.wsse import utils as wsse_utils
 
 from storage import load_config
 
@@ -67,6 +69,61 @@ class LenientSignature(Signature):
             return
 
         super().verify(envelope)
+
+
+class TimestampedSignature(LenientSignature):
+    """Signature handler that injects a wsu:Timestamp before signing."""
+
+    def __init__(
+        self,
+        key_file: str,
+        certfile: str,
+        *,
+        timestamp_ttl_seconds: int = 300,
+    ) -> None:
+        super().__init__(key_file, certfile)
+        self.timestamp_ttl_seconds = max(int(timestamp_ttl_seconds), 1)
+        self._last_timestamp_window: dict[str, str] | None = None
+
+    def _build_timestamp(self) -> etree._Element:
+        now = datetime.now(timezone.utc)
+        expires = now + timedelta(seconds=self.timestamp_ttl_seconds)
+
+        created_text = wsse_utils.get_timestamp(timestamp=now, zulu_timestamp=True)
+        expires_text = wsse_utils.get_timestamp(timestamp=expires, zulu_timestamp=True)
+
+        timestamp = wsse_utils.WSU.Timestamp()
+        timestamp.set(wsse_utils.ID_ATTR, wsse_utils.get_unique_id())
+        timestamp.append(wsse_utils.WSU.Created(created_text))
+        timestamp.append(wsse_utils.WSU.Expires(expires_text))
+
+        self._last_timestamp_window = {
+            "created": created_text,
+            "expires": expires_text,
+        }
+
+        return timestamp
+
+    def apply(self, envelope, headers):  # type: ignore[override]
+        security = wsse_utils.get_security_header(envelope)
+        timestamp_tag = f"{{{wsse_utils.ns.WSU}}}Timestamp"
+
+        for existing in list(security):
+            if existing.tag == timestamp_tag:
+                security.remove(existing)
+
+        security.insert(0, self._build_timestamp())
+
+        return super().apply(envelope, headers)
+
+    def debug_summary(self) -> dict[str, object]:
+        info: dict[str, object] = {
+            "timestamp_added": True,
+            "timestamp_ttl_seconds": self.timestamp_ttl_seconds,
+        }
+        if self._last_timestamp_window:
+            info["last_timestamp_window"] = dict(self._last_timestamp_window)
+        return info
 
 
 class UnifiedServiceError(Exception):
@@ -197,8 +254,11 @@ def get_unified_config() -> UnifiedServiceConfig:
     )
 
 
-def _build_security_summary(config: UnifiedServiceConfig) -> Dict[str, Any]:
-    return {
+def _build_security_summary(
+    config: UnifiedServiceConfig,
+    wsse: Signature | None = None,
+) -> Dict[str, Any]:
+    summary: Dict[str, Any] = {
         "ws_security_active": True,
         "mode": "wsse-x509-signature",
         "certificate_path": config.client_cert,
@@ -208,6 +268,11 @@ def _build_security_summary(config: UnifiedServiceConfig) -> Dict[str, Any]:
         "verify_tls": config.verify_tls,
         "ca_bundle": config.ca_bundle,
     }
+
+    if isinstance(wsse, TimestampedSignature):
+        summary.update(wsse.debug_summary())
+
+    return summary
 
 
 def _pretty_xml(elem: Optional[etree._Element]) -> str:
@@ -294,7 +359,14 @@ def _collect_transport_debug(transport: CapturingTransport) -> Dict[str, Any]:
     return info
 
 
-def create_unified_client() -> tuple[Client, Any, CapturingTransport, HistoryPlugin, UnifiedServiceConfig]:
+def create_unified_client() -> tuple[
+    Client,
+    Any,
+    CapturingTransport,
+    HistoryPlugin,
+    UnifiedServiceConfig,
+    Signature,
+]:
     config = get_unified_config()
 
     session = Session()
@@ -308,7 +380,7 @@ def create_unified_client() -> tuple[Client, Any, CapturingTransport, HistoryPlu
     settings = Settings(strict=False, xml_huge_tree=True)
     history = HistoryPlugin()
 
-    wsse = LenientSignature(config.client_key, config.client_cert)
+    wsse = TimestampedSignature(config.client_key, config.client_cert)
 
     client = Client(
         wsdl=config.wsdl_url,
@@ -324,11 +396,11 @@ def create_unified_client() -> tuple[Client, Any, CapturingTransport, HistoryPlu
     if hasattr(service, "_binding_options"):
         service._binding_options["address"] = config.endpoint
 
-    return client, service, transport, history, config
+    return client, service, transport, history, config, wsse
 
 
 def call_unified_operation(operation: str, **params: Any) -> AddressCallResult:
-    _client, service, transport, history, config = create_unified_client()
+    _client, service, transport, history, config, wsse = create_unified_client()
 
     if not hasattr(service, operation):
         raise UnifiedServiceError(f"UnifiedService does not expose operation {operation}")
@@ -402,7 +474,7 @@ def call_unified_operation(operation: str, **params: Any) -> AddressCallResult:
         response_xml=response_xml,
         endpoint=config.endpoint,
         soap_action=soap_action,
-        ws_security=_build_security_summary(config),
+        ws_security=_build_security_summary(config, wsse),
         transport_debug=transport_debug,
     )
 
