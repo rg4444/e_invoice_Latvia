@@ -337,6 +337,7 @@ def _invoke_addressee_operation(
         "request_saved_path": None,
         "request_filename": None,
         "ws_security": call_result.ws_security,
+        "transport_debug": call_result.transport_debug,
         "endpoint": call_result.endpoint,
         "fault": call_result.fault,
         "fault_code": call_result.fault_code,
