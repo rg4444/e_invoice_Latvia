@@ -100,8 +100,8 @@ class TimestampedSignature(LenientSignature):
         digest_method = None
 
         if xmlsec is not None:
-            signature_method = getattr(xmlsec.Transform, "RSA_SHA256", None)
-            digest_method = getattr(xmlsec.Transform, "SHA256", None)
+            signature_method = xmlsec.Transform.RSA_SHA1
+            digest_method = xmlsec.Transform.SHA1
 
         super().__init__(
             key_file,
