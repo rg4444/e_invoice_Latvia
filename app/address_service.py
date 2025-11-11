@@ -355,8 +355,7 @@ class TimestampedSignature(LenientSignature):
             binary_token = existing_token
             if not binary_token.get(str(wsu_id_attr)):
                 binary_token.set(wsu_id_attr, token_id)
-            if not binary_token.text:
-                binary_token.text = self._cert_b64
+            # leave text if already present
 
         signature = security.find(signature_tag)
         if signature is None:
