@@ -2,6 +2,11 @@ from copy import deepcopy
 
 import pytest
 
+try:
+    from types import SimpleNamespace
+except ImportError:  # pragma: no cover - Python < 3.3
+    SimpleNamespace = None
+
 etree = pytest.importorskip("lxml.etree")
 
 import app.address_service as address_service
@@ -177,6 +182,52 @@ def test_certificate_selection_skips_self_signed_ca(monkeypatch, tmp_path):
 
     chosen = TimestampedSignature._extract_certificate_b64(str(pem_path), None)
     assert chosen == "LEAFCERT"
+
+
+def test_timestamped_signature_prefers_sha256(monkeypatch):
+    if SimpleNamespace is None:  # pragma: no cover - defensive
+        pytest.skip("SimpleNamespace unavailable")
+
+    captured: dict[str, object] = {}
+
+    def _fake_init(
+        self,
+        key_file,
+        certfile,
+        password=None,
+        signature_method=None,
+        digest_method=None,
+    ) -> None:
+        captured["signature_method"] = signature_method
+        captured["digest_method"] = digest_method
+        self.signature_method = signature_method
+        self.digest_method = digest_method
+
+    monkeypatch.setattr(
+        address_service.Signature,
+        "__init__",
+        _fake_init,
+        raising=False,
+    )
+
+    stub_transform = SimpleNamespace(RSA_SHA256="rsa256", SHA256="sha256")
+    monkeypatch.setattr(
+        address_service,
+        "xmlsec",
+        SimpleNamespace(Transform=stub_transform),
+        raising=False,
+    )
+
+    monkeypatch.setattr(
+        TimestampedSignature,
+        "_extract_certificate_b64",
+        staticmethod(lambda certfile, key_file=None: "CERTDATA"),
+    )
+
+    TimestampedSignature("key.pem", "cert.pem")
+
+    assert captured["signature_method"] == "rsa256"
+    assert captured["digest_method"] == "sha256"
 
 
 def test_certificate_selection_handles_leaf_without_constraints(monkeypatch, tmp_path):
