@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 import traceback
 from datetime import datetime, timedelta, timezone
@@ -84,6 +85,7 @@ class TimestampedSignature(LenientSignature):
         super().__init__(key_file, certfile)
         self.timestamp_ttl_seconds = max(int(timestamp_ttl_seconds), 1)
         self._last_timestamp_window: dict[str, str] | None = None
+        self._cert_b64 = self._extract_certificate_b64(certfile)
 
     def _build_timestamp(self) -> etree._Element:
         now = datetime.now(timezone.utc)
@@ -114,7 +116,9 @@ class TimestampedSignature(LenientSignature):
 
         security.insert(0, self._build_timestamp())
 
-        return super().apply(envelope, headers)
+        envelope, headers = super().apply(envelope, headers)
+        self._ensure_binary_security_token(security)
+        return envelope, headers
 
     def debug_summary(self) -> dict[str, object]:
         info: dict[str, object] = {
@@ -123,7 +127,103 @@ class TimestampedSignature(LenientSignature):
         }
         if self._last_timestamp_window:
             info["last_timestamp_window"] = dict(self._last_timestamp_window)
+        if self._cert_b64:
+            info["binary_security_token"] = True
         return info
+
+    @staticmethod
+    def _extract_certificate_b64(certfile: str) -> str | None:
+        try:
+            raw = open(certfile, "r", encoding="utf-8", errors="ignore").read()
+        except OSError:
+            return None
+
+        match = re.search(
+            r"-----BEGIN CERTIFICATE-----\s*(.*?)\s*-----END CERTIFICATE-----",
+            raw,
+            re.DOTALL,
+        )
+        if not match:
+            return None
+
+        body = match.group(1)
+        # Collapse whitespace and newlines to produce a clean Base64 payload.
+        payload = "".join(body.split())
+        return payload or None
+
+    def _ensure_binary_security_token(self, security: etree._Element) -> None:
+        if not self._cert_b64:
+            return
+
+        token_tag = f"{{{wsse_utils.ns.WSSE}}}BinarySecurityToken"
+        wsu_id_attr = etree.QName(wsse_utils.ns.WSU, "Id")
+        signature_tag = f"{{{DS_NAMESPACE}}}Signature"
+        key_info_tag = f"{{{DS_NAMESPACE}}}KeyInfo"
+        str_tag = f"{{{wsse_utils.ns.WSSE}}}SecurityTokenReference"
+
+        token_id = wsse_utils.get_unique_id()
+        existing_token = None
+
+        for child in security:
+            if child.tag == token_tag:
+                existing_token = child
+                break
+
+        if existing_token is None:
+            bst = wsse_utils.WSSE.BinarySecurityToken()
+            bst.set(
+                "EncodingType",
+                "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary",
+            )
+            bst.set(
+                "ValueType",
+                "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3",
+            )
+            bst.set(wsu_id_attr, token_id)
+            bst.text = self._cert_b64
+
+            signature = security.find(signature_tag)
+            if signature is not None:
+                siblings = list(security)
+                try:
+                    index = siblings.index(signature)
+                except ValueError:
+                    index = 0
+                security.insert(index, bst)
+            else:
+                security.append(bst)
+            binary_token = bst
+        else:
+            binary_token = existing_token
+            if not binary_token.get(str(wsu_id_attr)):
+                binary_token.set(wsu_id_attr, token_id)
+            if not binary_token.text:
+                binary_token.text = self._cert_b64
+
+        signature = security.find(signature_tag)
+        if signature is None:
+            return
+
+        key_info = signature.find(key_info_tag)
+        if key_info is None:
+            return
+
+        sec_token_ref = key_info.find(str_tag)
+        if sec_token_ref is None:
+            sec_token_ref = etree.SubElement(
+                key_info, etree.QName(wsse_utils.ns.WSSE, "SecurityTokenReference")
+            )
+
+        for child in list(sec_token_ref):
+            sec_token_ref.remove(child)
+
+        reference = etree.SubElement(sec_token_ref, etree.QName(wsse_utils.ns.WSSE, "Reference"))
+        bst_id = binary_token.get(str(wsu_id_attr), token_id)
+        reference.set("URI", f"#{bst_id}")
+        reference.set(
+            "ValueType",
+            "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3",
+        )
 
 
 class UnifiedServiceError(Exception):
