@@ -1,0 +1,1264 @@
+<xs:schema xmlns="http://ivis.eps.gov.lv/XMLSchemas/100001/DIV/v1-0" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:div="http://ivis.eps.gov.lv/XMLSchemas/100001/DIV/v1-0" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:ur="http://ivis.eps.gov.lv/XMLSchemas/100679/URTypes/v1-0" xmlns:cnt="http://ivis.eps.gov.lv/XMLSchemas/100001/ContactInfo/v1-0" xmlns:adr="http://ivis.eps.gov.lv/XMLSchemas/100001/Address/v1-1" xmlns:cntr="http://ivis.eps.gov.lv/XMLSchemas/100009/UNeDocs/v0-3" xmlns:pr="http://ivis.eps.gov.lv/XMLSchemas/100001/Person/v1-0" xmlns:meta="http://ivis.eps.gov.lv/XMLSchemas/100001/IVIS/v1-0" xmlns:ivis="http://ivis.eps.gov.lv/XMLSchemas/100001/IVIS/v1-0" targetNamespace="http://ivis.eps.gov.lv/XMLSchemas/100001/DIV/v1-0" elementFormDefault="qualified" attributeFormDefault="unqualified" version="1.0" id="DIVEnvelope">
+  <xs:annotation>
+    <xs:appinfo>
+      <ivis:Metadata>
+        <ivis:Contributor CodeListCodeValue="100001">Valsts informācijas sistēmu savietotājs (VISS)</ivis:Contributor>
+        <ivis:Creator CodeListCodeValue="100001">Valsts informācijas sistēmu savietotājs (VISS)</ivis:Creator>
+        <ivis:Date>
+          <ivis:Created>2012-05-25Z</ivis:Created>
+          <ivis:Modified>2019-08-26Z</ivis:Modified>
+        </ivis:Date>
+        <ivis:Description>
+          <ivis:Default>Dokumentu integrācijas vides ziņojuma shēma</ivis:Default>
+        </ivis:Description>
+        <ivis:Format>
+          <ivis:Default>text/xml</ivis:Default>
+        </ivis:Format>
+        <ivis:Identifier Scheme="URN">URN:IVIS:100001:XSD-DIV-DIVEnvelope-v1-0</ivis:Identifier>
+        <ivis:Language>LV</ivis:Language>
+        <ivis:Publisher CodeListCodeValue="100001">Valsts informācijas sistēmu savietotājs (VISS)</ivis:Publisher>
+        <ivis:Relation>
+          <ivis:ConformsTo Href="URN:IVIS:100001:DOC-FR-XML">XML shēmu izstrādes vadlīnijas</ivis:ConformsTo>
+        </ivis:Relation>
+        <ivis:Status>
+          <ivis:Default>PUBLISHED</ivis:Default>
+          <ivis:Version>1.0</ivis:Version>
+        </ivis:Status>
+        <ivis:Subject>
+          <ivis:Category>XML Signature</ivis:Category>
+          <ivis:Keyword>DIV</ivis:Keyword>
+          <ivis:Keyword>e-dokuments</ivis:Keyword>
+        </ivis:Subject>
+        <ivis:Title>
+          <ivis:Default>DIVEnvelope</ivis:Default>
+        </ivis:Title>
+      </ivis:Metadata>
+    </xs:appinfo>
+  </xs:annotation>
+  <xs:import namespace="http://www.w3.org/2000/09/xmldsig#" schemaLocation="http://ivis.eps.gov.lv/RC/xsd/100001/xmldsig/1-1/xmldsig.xsd" />
+  <xs:import namespace="http://ivis.eps.gov.lv/XMLSchemas/100679/URTypes/v1-0" schemaLocation="http://ivis.eps.gov.lv/XMLSchemas/100679/URTypes/v1-0/URSimpleCommonTypes.xsd" />
+  <xs:import namespace="http://ivis.eps.gov.lv/XMLSchemas/100001/ContactInfo/v1-0" schemaLocation="http://ivis.eps.gov.lv/XMLSchemas/100001/ContactInfo/v1-0/ContactInfo.xsd" />
+  <xs:import namespace="http://ivis.eps.gov.lv/XMLSchemas/100001/Address/v1-1" schemaLocation="http://ivis.eps.gov.lv/XMLSchemas/100001/Address/v1-1/LivingPlaceLVA.xsd" />
+  <xs:import namespace="http://ivis.eps.gov.lv/XMLSchemas/100009/UNeDocs/v0-3" schemaLocation="http://ivis.eps.gov.lv/XMLSchemas/100009/UNeDocs/v0-3/CountryCode.xsd" />
+  <xs:import namespace="http://ivis.eps.gov.lv/XMLSchemas/100001/Person/v1-0" schemaLocation="http://ivis.eps.gov.lv/XMLSchemas/100001/Person/v1-0/FullName.xsd" />
+  <xs:import namespace="http://ivis.eps.gov.lv/XMLSchemas/100001/Person/v1-0" schemaLocation="http://ivis.eps.gov.lv/XMLSchemas/100001/Person/v1-0/PersonCode.xsd" />
+  <xs:import namespace="http://ivis.eps.gov.lv/XMLSchemas/100001/IVIS/v1-0" schemaLocation="http://ivis.eps.gov.lv/XMLSchemas/100001/IVIS/v1-0/Metadata.xsd" />
+  <xs:import namespace="http://ivis.eps.gov.lv/XMLSchemas/100001/IVIS/v1-0" schemaLocation="http://ivis.eps.gov.lv/XMLSchemas/100001/IVIS/v1-0/Attachment.xsd" />
+  <xs:import namespace="http://ivis.eps.gov.lv/XMLSchemas/100001/IVIS/v1-0" schemaLocation="http://ivis.eps.gov.lv/XMLSchemas/100001/IVIS/v1-0/Authority.xsd" />
+  <xs:import namespace="http://ivis.eps.gov.lv/XMLSchemas/100001/IVIS/v1-0" schemaLocation="http://ivis.eps.gov.lv/XMLSchemas/100001/IVIS/v1-0/Identification.xsd" />
+  <xs:element name="Envelope" type="EnvelopeStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta aploksne</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="ServerConfirmationPart" type="ServerConfirmationPartStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">DIV saņemšanas apliecinājums.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:element name="RecipientConfirmationPart" type="RecipientConfirmationPartStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Ziņojuma saņemēja apliecinājums.</xs:documentation>
+    </xs:annotation>
+  </xs:element>
+  <xs:complexType name="AddresseesStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Adresāta struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="AddresseeEntry" type="CorrespondentStructure" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta adresāta ieraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="AddressStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Adreses struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:choice>
+      <xs:element name="AddressLVA" type="adr:PersonLivingPlaceLVAStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Adrese Latvijā</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="ForeignAddress" type="ForeignAddressStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Adrese ārvalstī</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="AnyXMLStructure" mixed="true">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Jebkādu XML datu tipa definīcija</xs:documentation>
+    </xs:annotation>
+    <xs:sequence minOccurs="0" maxOccurs="unbounded">
+      <xs:any namespace="##any" processContents="lax" />
+    </xs:sequence>
+    <xs:anyAttribute namespace="##any" />
+  </xs:complexType>
+  <xs:complexType name="AppendicesStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta pielikumu saraksts</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="AppendixEntry" type="AppendixEntryStructure" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta pielikuma ieraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="AppendixEntryStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta pielikuma struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="AppendixNumber">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Pielikuma numurs pēc kārtas</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:int">
+            <xs:minInclusive value="1" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="AppendixTitle">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Pielikuma nosaukums</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="AppendixAuthor" type="CorrespondentStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Pielikuma autors, ja tas nesakrīt ar pamatdokumentu</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="AppendixRegistrationNumber" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Pielikuma reģistrācijas numurs, ja tas ir arī pastāvīgs dokuments</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="50" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="Date" type="xs:date" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Pielikuma izdošanas datums, ja tas neakrīt ar pamatdokumentu</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ApprovalStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta apstiprināšanas atribūti</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="Approver" type="OfficerStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Apstiprinātājs - amatpersona</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="RefRegistrationNumber" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta numurs, ar kuru veikta apstiprināšana</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="InstitutionTitle" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Koleģiālas institūcijas nosaukums, kas veica apstiprināšanu</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="ApprovalDate" type="xs:date">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Apstiprināšanas datums</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Notes" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Papildus apstiprināšanas piezīmes</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="AuthorsStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta autoru saraksts</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="AuthorEntry" type="CorrespondentStructure" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta autora ieraksts.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CommonMetadataStructure" mixed="true">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Daudziem dokumenta veidiem kopēju metadatu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence minOccurs="0">
+      <xs:element name="Signatures" type="DocumentSignaturesStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Informācijas par dokumenta parakstiem</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Addressees" type="AddresseesStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta adresātu saraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Place" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta izstrādāšanas, izdošanas, pieņemšanas vai parakstīšanas vietas nosaukums.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="Approval" type="ApprovalStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Atzīme par dokumenta apstiprinājumu.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="RegistrationNumber" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta reģistrācijas numurs.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="DocumentReferences" type="ReferencesStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Atsauču saraksts uz saistītajiem dokumentiem</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Preparers" type="PreparersStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta sagatavotāji</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="LimitedAvailability" type="xs:boolean" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Pazīme, kas norāda vai dokuments ir ierobežotas pieejamības</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Resolutions" type="ResolutionsStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta rezolūcijas</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="StateArchiveInfo" type="StateArchiveInfoStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Atribūti, kas nepieciešami valsts arhīvam.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Appendices" type="AppendicesStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta pielikumu saraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ConfirmationEntryStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Ziņojuma sūtīšanas apliecinājuma struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="RelatedRecipients" type="E-AddressesStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Aploksnes saņēmēju saraksts, kuri attiecās uz saņēmēja apstiprinājumu.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Status">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Saņēmēja uzstādīts statuss.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="RecipientAccepted" />
+            <xs:enumeration value="RecipientRejected" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="StatusCode" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Saņēmēja uzstādīts akceptēšanas vai noraidīšanas kods.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="50" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="StatusReason" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Saņēmēja uzstādīts akceptēšanas vai noraidīšanas iemesls brīvā formā.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="250" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="Id" type="xs:ID" use="required" />
+  </xs:complexType>
+  <xs:complexType name="ContactInfoStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Kontaktinformācijas struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="Phone" type="cnt:TelephoneNumberType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Telefona numurs.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="E-mail" type="cnt:EmailAddressType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">E-pasts.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Fax" type="cnt:TelephoneNumberType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Faksa numurs.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ContentReferenceStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Datnes satura norādes struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="ContentReference">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Norāde uz datnes saturu</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="DigestMethod" type="ds:DigestMethodType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Jaukšanas algoritma tips</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="DigestValue" type="ds:DigestValueType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Jaucējfunkcijas rezultāts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="CorrespondentStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta saistītā korespondenta struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:choice>
+      <xs:element name="Institution" type="InstitutionDataStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Korespondents - organizācija.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="PrivatePerson" type="PrivatePersonDataStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Korespondents - privātpersona.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="InformationSystem" type="InformationSystemTypeStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Korespondents - informācijas sistēma.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:choice>
+  </xs:complexType>
+  <xs:complexType name="InformationSystemTypeStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Informācijas sistēmu veida struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:simpleContent>
+      <xs:extension base="xs:normalizedString">
+        <xs:attributeGroup ref="ivis:CodeListDescriptionGroup" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="DocumentKindStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta veida struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="DocumentKindCode">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta veida kods</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="50" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="DocumentKindVersion">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta tipa versija</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="50" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="DocumentKindName" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta veida nosaukums</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="100" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DocumentMetadataEntryStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumentu aprakstošo metadatu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="GeneralMetadata" type="GeneralMetadataStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta vispārējie metadati</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="PayloadReference" type="DocumentPayloadStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Saraksts ar pievienotajām datnēm</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="CommonMetadata" type="CommonMetadataStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Šajā sadaļā tiek iekļauti daudziem dokumentu veidiem kopējie metadati</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="ExtendedMetadata" type="ExtendedMetadataStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Šajā sadaļā tiek iekļauti dokumenta veida specifiskie metadati.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DocumentPayloadStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumentam pievienoto datņu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="File" type="FileStructure" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Pievienotās datnes apraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DocumentSignatureEntryStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta parakstītāju struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="Signer" type="OfficerStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta parakstītājs</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Notes" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Papildus piezīmes pie paraksta (piemēram, ja paraksta pienākumu izpildītājs).</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DocumentSignaturesStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta parakstītāju saraksts</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="SignatureEntry" type="DocumentSignatureEntryStructure" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta paraksta ieraksts.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="E-AddressesStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">E-adrešu saraksts</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="E-Address" type="cnt:EmailAddressType" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">E-adreses ieraksts.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="EncryptionInfoStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Šifrēšanas apraksta struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="Key">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Simetriskās šifrēšanas atslēga, kas nošifrēta ar saņēmēja publisko atslēgu.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:base64Binary" />
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="CertificateThumbprint">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Saņēmēja sertifikātu identificējoša informācija.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:base64Binary">
+            <xs:maxLength value="50" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="EnvelopeStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta aploksnes struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="SenderDocument" type="SenderDocumentStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Sūtītāja aizpildāmie atribūti</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="ServerTransportMetadata" type="ServerTransportMetadataStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Transporta atribūti, ko aizpilda DIV</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="RecipientConfirmations" type="RecipientConfirmationsStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Saņēmēju apliecinājumi</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Signatures" type="SignaturesStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Satur sūtītāja elektronisko parakstu, ka arī DIV parakstus aploksnes saņemšanas brīdī un saņēmējam nodošanas brīdī</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ExtendedMetadataStructure" mixed="true">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Paplašināto dokumenta metadatu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:any namespace="##other" processContents="lax" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FileStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Datnes apraksta struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="MimeType" type="meta:MimeType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Interneta medija tips</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Size" type="xs:unsignedLong">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Izmērs baitos</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Name" type="meta:FileNameType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Datnes nosaukums</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Content" type="ContentReferenceStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Datnes satura norādes ieraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Compressed" type="xs:boolean">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Pazīme, kas norāda vai datne ir kompresēta</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="AppendixNumber" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Pielikuma numurs, ja datne ir pielikums</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:int">
+            <xs:minInclusive value="1" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ForeignAddressStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Ārvalsts adreses struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="ForeignAddressText" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Ārvalsts adreses teksts bez valsts</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="ForeignCountry" type="cntr:CountryNameType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Ārvalsts adreses valsts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="GeneralMetadataStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Vispārējo metadatu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="Authors" type="AuthorsStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta autori</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Date" type="xs:date">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta datums.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="DocumentKind" type="DocumentKindStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta veids.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Description" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta un tā satura apraksts brīvā teksta formā.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="4000" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="Languages" type="LanguagesStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumentā sastopamās valodas.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Title">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta virsraksts</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="InstitutionDataStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Organizācijas aprakstošo datu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="SuperOrganizationTitle" type="ur:NameRegisteredType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Augstākstāvošas organizācijas nosaukums</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Title" type="ur:NameRegisteredType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Iestādes, institūcijas, organizācijas u.tml. nosaukums.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="RegistrationNumber" type="ur:UnifiedRegNoType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Organizācijas reģistrācijas numurs.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="LegalAddress" type="AddressStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Organizācijas juridiskā adrese.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="OfficerPosition" type="OfficerPositionType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Personas amata nosaukums (norādītās organizācijas ietvaros)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="RealAddress" type="AddressStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Organizācijas faktiskā adrese.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="ContactInfo" type="ContactInfoStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Organizācijas kontaktinformācija</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Authority" type="ivis:AuthorityTypeType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Korespondents - Authority klasifikatora identifikators.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="LanguagesStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Valodu saraksts</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="Language" type="meta:LanguageType" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Konkrēta dokumentā sastopamā valoda</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OfficerStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Amatpersonas struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="Name" type="pr:FirstNameType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Personas vārds.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Surname" type="pr:LastNameType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Personas uzvārds.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="OfficerPosition" type="OfficerPositionType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Personas amata nosaukums.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="ContactInfo" type="ContactInfoStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Personas kontaktinformācija.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="PreparersStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta sagatavotāju saraksts</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="PreparerEntry" type="OfficerStructure" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta sagatavotāja ieraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="PrivatePersonDataStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Fiziskās personas aprakstošo datu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="Name" type="pr:FirstNameType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Personas vārds.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Surname" type="pr:LastNameType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Personas uzvārds.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Address" type="AddressStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Personas adrese.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="IdentityNumber" type="pr:PersonCodeType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Personas kods.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="OtherIdentifyingInfo" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Cita personu identificējoša informācija</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="ContactInfo" type="ContactInfoStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Personas kontaktinformācija</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="RecipientConfirmationPartStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Ziņojuma saņēmēja apliecinājuma aploksnes struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="RecipientConfirmations" type="RecipientConfirmationStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Saņēmēja apliecinājums</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Signatures" type="SignatureStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Satur saņēmēja parakstu</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="RecipientConfirmationStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Ziņojuma saņēmēja apliecinājuma struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="ConfirmationEntry" type="ConfirmationEntryStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Saņēmēja apliecinājuma metadati.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="RecipientConfirmationsStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Ziņojuma saņēmēju apliecinājumu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="ConfirmationEntry" type="ConfirmationEntryStructure" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Saņēmēja apliecinājuma metadati.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="RecipientEntryStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Ziņojuma adresāta struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="RecipientE-Address" type="cnt:EmailAddressType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Saņēmēja e-adrese</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="RecipientInfo" type="CorrespondentStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Saņēmēja papildinformācija</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="EncryptionInfo" type="EncryptionInfoStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Informācija par šifrēto datni</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="RecipientsStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Ziņojuma adresātu saraksts</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="RecipientEntry" type="RecipientEntryStructure" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Aploksnes saņēmēja ieraksts.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ReferenceEntryStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta atsauces (norādes uz saistīto dokumentu) struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="RefRegistrationNumber">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta reģistrācijas numurs, uz kuru ir atsauce</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="50" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="Date" type="xs:date" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta izdošanas datums, uz kuru ir atsauce</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Author" type="CorrespondentStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta autors, nepieciešams tikai, lai viennozīmīgi identificētu dokumentu, uz kuru ir atsauce</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="OriginalAuthor" type="CorrespondentStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta oriģinālais (faktiskais) autors, ja tas atšķiras no dokumenta reģistrācijas datu piešķīrēja</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="ReferenceKind" type="ReferenceKindTypeStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta references veids</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ReferenceKindTypeStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta references veidu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:simpleContent>
+      <xs:extension base="xs:normalizedString">
+        <xs:attributeGroup ref="ivis:CodeListDescriptionGroup" />
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="ReferencesStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Saistīto dokumentu saraksts</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="ReferenceEntry" type="ReferenceEntryStructure" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta atsauces ieraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ResolutionEntryStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta rezolūcijas struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="ResolutionAuthor" type="OfficerStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Rezolūcijas autors</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="ResolutionDate" type="xs:date">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Rezolūcijas datums</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Addressee" type="CorrespondentStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Adresāts, norāde par dokumenta izpildītāju</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Task">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Uzdevums, kas jāveic dokumenta izpildītājam</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="200" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ResolutionsStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta rezolūciju saraksts</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="ResolutionEntry" type="ResolutionEntryStructure" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta rezolūcijas ieraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SenderDocumentStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta sūtītāja aizpildāmo atribūtu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="DocumentMetadata" type="DocumentMetadataEntryStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta biznesa metadati un norādes uz datnēm</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="SenderTransportMetadata" type="SenderTransportMetadataStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Šajā sadaļā tiek iekļauta tehniskie metadati, kas nepieciešami dokumentu apmaiņas vides darbībai un ko aizpilda sūtītājs</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="Id" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:ID">
+          <xs:enumeration value="SenderSection" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+  <xs:complexType name="SenderTransportMetadataStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Dokumenta sūtītāja transportēšanas metadatu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="SenderE-Address" type="cnt:EmailAddressType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Aploksnes sūtītāja e-adrese</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="SenderRefNumber">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Nosūtītāja saskarnes piešķirts unikāls aploksnes references numurs.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="50" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="Recipients" type="RecipientsStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Aploksnes saņēmēju saraksts.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="NotifySenderOnDelivery" type="xs:boolean">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Pazīme, vai aploksnes sūtītājam sūtīt saņēmējam notifikāciju par aploksnes piegādi.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="DeliveryDeadline" type="xs:dateTime" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Ziņojuma piegādes laika ierobežojums</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Priority" type="PriorityType" default="normal">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Ziņojuma prioritāte</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="TraceInfo" type="TraceInfoStructure" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Lauki ziņojumu trasējamības nodrošināšanai</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ServerConfirmationPartStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">DIV saņemšanas apliecinājuma struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="ServerTransportMetadata" type="ServerTransportMetadataStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Transporta atribūti, ko aizpilda DIV saņemšanas brīdī</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Signatures" type="SignaturesStructure">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Satur DIV parakstu aploksnes saņemšanas brīdī</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="ServerTransportMetadataStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">DIV transportēšanas metadatu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="ServerReceivedTime" type="xs:dateTime">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Datums un laiks, kad DIV saņema aploksni.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="ServerRefNumber" type="ServerRefNumberType">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">DIV piešķirts unikāls aploksnes references numurs.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="DeliveryDeadline" type="xs:dateTime">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Ziņojuma piegādes laika ierobežojums, kuru DIV uzstadīja vai akceptēja.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="AvailabilityTime" type="xs:dateTime">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Datums un laiks, kad aploksne kļuva pieejama adresātiem.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="Id" use="required">
+      <xs:simpleType>
+        <xs:restriction base="xs:ID">
+          <xs:enumeration value="ServerSection" />
+        </xs:restriction>
+      </xs:simpleType>
+    </xs:attribute>
+  </xs:complexType>
+  <xs:complexType name="SignatureStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Elektroniska paraksta struktūra,</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element ref="ds:Signature">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">XAdES elektroniskais paraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="SignaturesStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Elektronisko parakstu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element ref="ds:Signature" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">XAdES elektroniskais paraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="StateArchiveInfoStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Valsts arhīvam nepieciešamo atribūtu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="DocumentTheme" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta tēma.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="DossierNumber" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Lietas numurs</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="DossierLevel" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Lietas līmenis</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="DocumentRegistrarName" type="pr:FirstNameType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta reģistrētāja vārds</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="DocumentRegistrarSurname" type="pr:LastNameType" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Dokumenta reģistrētāja uzvārds</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Other1" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Papildus lauks 1</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="Other2" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Papildus lauks 2</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="TraceInfoEntryStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Trasēšanas atribūtu struktūra</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="TraceInfoID" type="xs:ID">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Trasējamības lauka identifikators.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="TraceText">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Trasējamības informācija.</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="50" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="TraceInfoStructure">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Trasēšanas atribūtu saraksts</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="TraceInfoEntry" type="TraceInfoEntryStructure" maxOccurs="unbounded">
+        <xs:annotation>
+          <xs:documentation xml:lang="lv">Trasējamības ieraksts</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:simpleType name="OfficerPositionType">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Amata nosaukuma tips</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="200" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="PriorityType">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">Ziņojuma sūtīšanas prioritātes tips</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="high" />
+      <xs:enumeration value="normal" />
+      <xs:enumeration value="low" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="ServerRefNumberType">
+    <xs:annotation>
+      <xs:documentation xml:lang="lv">DIV piešķlrtā aploksnes identifikatora tips</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string" />
+  </xs:simpleType>
+</xs:schema>
