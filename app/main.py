@@ -1,5 +1,6 @@
 import os, logging, base64, uuid, time, json, subprocess
 from datetime import datetime
+from typing import Any
 from fastapi import FastAPI, Request, Form, Query, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -38,6 +39,7 @@ from lxml import etree
 from schematron import run_schematron
 from kosit_runner import run_kosit
 from address_service import call_unified_operation, UnifiedServiceError
+from div_envelope import EnvelopeMetadata, build_div_envelope, parse_recipient_list
 
 INVOICE_DIR = "/data/invoices"
 SAMPLES_DIR = "/data/samples"
@@ -93,6 +95,35 @@ def _safe_next(target: str | None) -> str:
 
 
 LOGIN_EXEMPT_PATHS = {"/login"}
+
+
+def _truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _sanitize_priority(value: Any, default: str) -> str:
+    if isinstance(value, str):
+        candidate = value.strip().lower()
+        if candidate in {"high", "normal", "low"}:
+            return candidate
+    return default
+
+
+def _div_envelope_metadata(cfg: dict[str, Any]) -> EnvelopeMetadata:
+    base = EnvelopeMetadata()
+    return EnvelopeMetadata(
+        author=(cfg.get("div_author") or base.author),
+        document_kind_code=(cfg.get("div_document_kind_code") or base.document_kind_code),
+        document_kind_version=(cfg.get("div_document_kind_version") or base.document_kind_version),
+        priority=_sanitize_priority(cfg.get("div_priority"), base.priority),
+        notify_sender_on_delivery=_truthy(
+            cfg.get("div_notify_sender_on_delivery", base.notify_sender_on_delivery)
+        ),
+    )
 
 
 class LoginRequiredMiddleware(BaseHTTPMiddleware):
@@ -1204,35 +1235,45 @@ def div_sendmessage(
     if not cfg.get("soap_action"):
         return JSONResponse({"ok": False, "error": "SOAPAction not set. Pick operation from WSDL Browser → Use in Send."}, status_code=400)
 
-    att_b64, att_len = ("", "0")
+    att_b64 = ""
     content_id = new_content_id()
+    file_name = "invoice.xml"
     if attachment_path:
-        att_b64, att_len = read_file_b64(attachment_path)
+        att_b64, _ = read_file_b64(attachment_path)
+        file_name = os.path.basename(attachment_path) or file_name
 
     ns = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
-    body = f"""
-    <tns:SendMessage xmlns:tns="{ns}">
-      <tns:Envelope>
-        <MessageClientId>{client_msg_id or uuid.uuid4()}</MessageClientId>
-        <SenderEAddress>{sender_eaddr}</SenderEAddress>
-        <Recipients>
-          <Recipient>
-            <EAddress>{recipient_eaddr}</EAddress>
-          </Recipient>
-        </Recipients>
-        <Subject>Test e-invoice</Subject>
-        <BodyText>Test transmission from e-Rēķini Tester</BodyText>
-      </tns:Envelope>
-      <tns:AttachmentsInput>
-        <AttachmentInput>
-          <ContentId>{content_id}</ContentId>
-          <FileName>invoice.xml</FileName>
-          <MimeType>{mime_type}</MimeType>
-          <Contents>{att_b64}</Contents>
-        </AttachmentInput>
-      </tns:AttachmentsInput>
-    </tns:SendMessage>
-    """.strip()
+    metadata = _div_envelope_metadata(cfg)
+    subject_text = "Test e-invoice"
+    body_text = "Test transmission from e-Rēķini Tester"
+    sender_reference = (client_msg_id or "").strip() or str(uuid.uuid4())
+    recipients = parse_recipient_list(recipient_eaddr)
+
+    try:
+        envelope_element = build_div_envelope(
+            sender_eaddress=sender_eaddr.strip(),
+            recipients=recipients,
+            sender_reference=sender_reference,
+            subject=subject_text,
+            body_text=body_text,
+            metadata=metadata,
+            trace_entries={"MessageClientId": sender_reference},
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+    send_message_el = etree.Element(etree.QName(ns, "SendMessage"), nsmap={"tns": ns})
+    envelope_wrapper = etree.SubElement(send_message_el, etree.QName(ns, "Envelope"))
+    envelope_wrapper.append(envelope_element)
+
+    attachments_input = etree.SubElement(send_message_el, etree.QName(ns, "AttachmentsInput"))
+    attachment_el = etree.SubElement(attachments_input, etree.QName(ns, "AttachmentInput"))
+    etree.SubElement(attachment_el, etree.QName(ns, "ContentId")).text = content_id
+    etree.SubElement(attachment_el, etree.QName(ns, "FileName")).text = file_name
+    etree.SubElement(attachment_el, etree.QName(ns, "MimeType")).text = mime_type
+    etree.SubElement(attachment_el, etree.QName(ns, "Contents")).text = att_b64
+
+    body = etree.tostring(send_message_el, encoding="unicode", pretty_print=True)
 
     env = f"""<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
                              xmlns:wsa="http://www.w3.org/2005/08/addressing">
@@ -1290,29 +1331,37 @@ def div_init(
             chunks.append(chunk)
 
     ns = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
-    body = f"""
-    <tns:InitSendMessage xmlns:tns="{ns}">
-      <tns:Envelope>
-        <MessageClientId>{client_msg_id or uuid.uuid4()}</MessageClientId>
-        <SenderEAddress>{sender_eaddr}</SenderEAddress>
-        <Recipients>
-          <Recipient>
-            <EAddress>{recipient_eaddr}</EAddress>
-          </Recipient>
-        </Recipients>
-        <Subject>Test e-invoice</Subject>
-        <BodyText>Test transmission from e-Rēķini Tester</BodyText>
-      </tns:Envelope>
-      <tns:AttachmentsInput>
-        <AttachmentInput>
-          <ContentId>{content_id}</ContentId>
-          <FileName>{file_name or 'attachment.bin'}</FileName>
-          <MimeType>{mime_type}</MimeType>
-          <Length>{att_len}</Length>
-        </AttachmentInput>
-      </tns:AttachmentsInput>
-    </tns:InitSendMessage>
-    """.strip()
+    metadata = _div_envelope_metadata(cfg)
+    subject_text = "Test e-invoice"
+    body_text = "Test transmission from e-Rēķini Tester"
+    sender_reference = (client_msg_id or "").strip() or str(uuid.uuid4())
+    recipients = parse_recipient_list(recipient_eaddr)
+
+    try:
+        envelope_element = build_div_envelope(
+            sender_eaddress=sender_eaddr.strip(),
+            recipients=recipients,
+            sender_reference=sender_reference,
+            subject=subject_text,
+            body_text=body_text,
+            metadata=metadata,
+            trace_entries={"MessageClientId": sender_reference},
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+    init_el = etree.Element(etree.QName(ns, "InitSendMessage"), nsmap={"tns": ns})
+    envelope_wrapper = etree.SubElement(init_el, etree.QName(ns, "Envelope"))
+    envelope_wrapper.append(envelope_element)
+
+    attachments_input = etree.SubElement(init_el, etree.QName(ns, "AttachmentsInput"))
+    attachment_el = etree.SubElement(attachments_input, etree.QName(ns, "AttachmentInput"))
+    etree.SubElement(attachment_el, etree.QName(ns, "ContentId")).text = content_id
+    etree.SubElement(attachment_el, etree.QName(ns, "FileName")).text = file_name or "attachment.bin"
+    etree.SubElement(attachment_el, etree.QName(ns, "MimeType")).text = mime_type
+    etree.SubElement(attachment_el, etree.QName(ns, "Length")).text = att_len
+
+    body = etree.tostring(init_el, encoding="unicode", pretty_print=True)
 
     env = f"""<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
                              xmlns:wsa="http://www.w3.org/2005/08/addressing">
@@ -1344,10 +1393,11 @@ def div_init(
         "message_id": msg_id,
         "content_id": content_id,
         "mime_type": mime_type,
-        "file_name": file_name,
-        "sender": sender_eaddr,
+        "file_name": file_name or "attachment.bin",
+        "sender": sender_eaddr.strip(),
+        "recipients": recipients,
+        "client_msg_id": sender_reference,
         "recipient": recipient_eaddr,
-        "client_msg_id": client_msg_id or str(uuid.uuid4()),
     })
 
     _log_div_call("InitSendMessage", env, res.get("response_xml", ""), res.get("took_ms", 0), cfg)
@@ -1392,27 +1442,48 @@ def div_sendsection(index: int = Form(0)):
 def div_complete():
     cfg = load_config()
     ns = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
-    body = f"""
-    <tns:CompleteSendMessage xmlns:tns="{ns}">
-      <tns:MessageId>{CHUNK_STATE.get('message_id')}</tns:MessageId>
-      <tns:Envelope>
-        <MessageClientId>{CHUNK_STATE.get('client_msg_id')}</MessageClientId>
-        <SenderEAddress>{CHUNK_STATE.get('sender')}</SenderEAddress>
-        <Recipients>
-          <Recipient><EAddress>{CHUNK_STATE.get('recipient')}</EAddress></Recipient>
-        </Recipients>
-        <Subject>Test e-invoice</Subject>
-        <BodyText>Test transmission from e-Rēķini Tester</BodyText>
-      </tns:Envelope>
-      <tns:AttachmentsInput>
-        <AttachmentInput>
-          <ContentId>{CHUNK_STATE.get('content_id')}</ContentId>
-          <FileName>{CHUNK_STATE.get('file_name')}</FileName>
-          <MimeType>{CHUNK_STATE.get('mime_type')}</MimeType>
-        </AttachmentInput>
-      </tns:AttachmentsInput>
-    </tns:CompleteSendMessage>
-    """.strip()
+    metadata = _div_envelope_metadata(cfg)
+    subject_text = "Test e-invoice"
+    body_text = "Test transmission from e-Rēķini Tester"
+    sender_reference = CHUNK_STATE.get("client_msg_id") or str(uuid.uuid4())
+    recipients = CHUNK_STATE.get("recipients") or parse_recipient_list(
+        CHUNK_STATE.get("recipient", "")
+    )
+    sender_address = CHUNK_STATE.get("sender", "")
+
+    try:
+        envelope_element = build_div_envelope(
+            sender_eaddress=sender_address,
+            recipients=recipients,
+            sender_reference=sender_reference,
+            subject=subject_text,
+            body_text=body_text,
+            metadata=metadata,
+            trace_entries={"MessageClientId": sender_reference},
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+    complete_el = etree.Element(etree.QName(ns, "CompleteSendMessage"), nsmap={"tns": ns})
+    etree.SubElement(complete_el, etree.QName(ns, "MessageId")).text = CHUNK_STATE.get(
+        "message_id"
+    )
+    envelope_wrapper = etree.SubElement(complete_el, etree.QName(ns, "Envelope"))
+    envelope_wrapper.append(envelope_element)
+
+    attachments_input = etree.SubElement(complete_el, etree.QName(ns, "AttachmentsInput"))
+    attachment_el = etree.SubElement(attachments_input, etree.QName(ns, "AttachmentInput"))
+    etree.SubElement(attachment_el, etree.QName(ns, "ContentId")).text = CHUNK_STATE.get(
+        "content_id"
+    )
+    etree.SubElement(attachment_el, etree.QName(ns, "FileName")).text = CHUNK_STATE.get(
+        "file_name"
+    )
+    etree.SubElement(attachment_el, etree.QName(ns, "MimeType")).text = CHUNK_STATE.get(
+        "mime_type"
+    )
+
+    body = etree.tostring(complete_el, encoding="unicode", pretty_print=True)
 
     env = f"""<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
                              xmlns:wsa="http://www.w3.org/2005/08/addressing">
