@@ -89,6 +89,14 @@ def test_duplicate_key_info_nodes_removed_before_replacement():
     assert sec_token_ref is not None
 
 
+def test_binary_security_token_gracefully_skips_missing_security():
+    signer = TimestampedSignature.__new__(TimestampedSignature)
+    signer._cert_b64 = "CERTDATA=="
+
+    # Should be a no-op instead of raising AttributeError when security is None
+    signer._ensure_binary_security_token(None)
+
+
 class _DummyKey:
     def __init__(self, marker: str) -> None:
         self.marker = marker
@@ -238,6 +246,14 @@ def test_apply_signs_ws_addressing_headers(monkeypatch):
     signer.timestamp_ttl_seconds = 300
     signer._cert_b64 = "CERT=="
     signer._last_timestamp_window = None
+    signer._signed_parts = (
+        "body",
+        "timestamp",
+        "action",
+        "to",
+        "message",
+        "replyto",
+    )
 
     signed_nodes = []
     ensured_nodes = []
@@ -410,7 +426,9 @@ def test_timestamped_signature_prefers_sha256(monkeypatch):
         raising=False,
     )
 
-    stub_transform = SimpleNamespace(RSA_SHA256="rsa256", SHA256="sha256")
+    stub_transform = SimpleNamespace(
+        RSA_SHA1="rsa1", RSA_SHA256="rsa256", SHA1="sha1", SHA256="sha256"
+    )
     monkeypatch.setattr(
         address_service,
         "xmlsec",
@@ -424,7 +442,12 @@ def test_timestamped_signature_prefers_sha256(monkeypatch):
         staticmethod(lambda certfile, key_file=None: "CERTDATA"),
     )
 
-    TimestampedSignature("key.pem", "cert.pem")
+    TimestampedSignature(
+        "key.pem",
+        "cert.pem",
+        sign_alg="rsa-sha256",
+        digest_alg="sha256",
+    )
 
     assert captured["signature_method"] == "rsa256"
     assert captured["digest_method"] == "sha256"

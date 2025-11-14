@@ -174,13 +174,22 @@ class TimestampedSignature(LenientSignature):
         security = wsse_utils.get_security_header(envelope)
         timestamp_tag = f"{{{wsse_utils.ns.WSU}}}Timestamp"
 
-        for existing in list(security):
-            if existing.tag == timestamp_tag:
-                security.remove(existing)
+        if security is not None:
+            for existing in list(security):
+                if existing.tag == timestamp_tag:
+                    security.remove(existing)
 
-        security.insert(0, self._build_timestamp())
+            security.insert(0, self._build_timestamp())
 
         self._apply_signature(envelope)
+
+        # Re-fetch the Security header after signing.  Depending on the
+        # xmlsec/zeep versions, the signing step may create or replace the
+        # header node which would make the previously captured reference
+        # dangling.  Using a fresh lookup keeps the implementation resilient
+        # and avoids crashes like ``'NoneType' object has no attribute 'find'``
+        # when the header could not be located.
+        security = wsse_utils.get_security_header(envelope)
         self._ensure_binary_security_token(security)
         return envelope, headers
 
@@ -399,9 +408,14 @@ class TimestampedSignature(LenientSignature):
         # Fallback to the first certificate if nothing else matched.
         return certificates[0][1]
 
-    def _ensure_binary_security_token(self, security: etree._Element) -> None:
+    def _ensure_binary_security_token(
+        self, security: etree._Element | None
+    ) -> None:
         # If we don't have a certificate loaded, do nothing
         if not self._cert_b64:
+            return
+
+        if security is None:
             return
 
         wsse_ns = wsse_utils.ns.WSSE
