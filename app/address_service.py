@@ -31,6 +31,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 
 from storage import load_config
+from soap_client import send_get_initial_addressee_request
 
 
 SOAP_ENV_NAMESPACES = (
@@ -747,7 +748,83 @@ def create_unified_client() -> tuple[
     return client, service, transport, history, config, wsse
 
 
+def _call_initial_addressee_direct(token: str) -> AddressCallResult:
+    """
+    Direct HTTP+SOAP path for GetInitialAddresseeRecordList using our
+    manually built, signed SOAP 1.2 envelope.
+    """
+
+    config = get_unified_config()
+    endpoint = config.endpoint
+    soap_action = (
+        "http://vraa.gov.lv/div/uui/2011/11/"
+        "UnifiedServiceInterface/GetInitialAddresseeRecordList"
+    )
+
+    started = time.perf_counter()
+
+    # Envelope: SOAP 1.2 + WS-Addressing + WS-Security (X.509, signed)
+    envelope_xml = build_signed_get_initial_addressee_request(
+        endpoint=endpoint,
+        token=token or "",
+        certfile=config.client_cert,
+        key_file=config.client_key,
+        key_password=None,
+    )
+
+    # Low-level HTTP call (TLS, client cert, Content-Type+action)
+    http = send_get_initial_addressee_request(
+        endpoint=endpoint,
+        envelope_xml=envelope_xml,
+        client_cert=config.client_cert,
+        client_key=config.client_key,
+        key_pass="",
+    )
+
+    took_ms = int((time.perf_counter() - started) * 1000)
+
+    status_code = http.get("status")
+    response_xml = http.get("body") or ""
+    ok = bool(status_code and 200 <= status_code < 300)
+
+    transport_debug: Dict[str, Any] = {
+        "url": http.get("url"),
+        "status": status_code,
+        "response_headers": http.get("headers") or {},
+    }
+
+    # For now we do not parse SOAP faults in detail here
+    fault_message = None
+    fault_code = None
+    fault_detail = None
+
+    # The GUI uses response_xml via _parse_addressee_summary(),
+    # not the generic "result", so we can keep result=None.
+    serialized = None
+
+    return AddressCallResult(
+        ok=ok,
+        http_status=status_code,
+        took_ms=took_ms,
+        result=serialized,
+        fault=fault_message,
+        fault_code=fault_code,
+        fault_detail_xml=fault_detail,
+        request_xml=envelope_xml,
+        response_xml=response_xml,
+        endpoint=config.endpoint,
+        soap_action=soap_action,
+        ws_security=_build_security_summary(config, None),
+        transport_debug=transport_debug,
+    )
+
+
 def call_unified_operation(operation: str, **params: Any) -> AddressCallResult:
+    # NEW: direct signed-SOAP path for initial addressee list
+    if operation == "GetInitialAddresseeRecordList":
+        token = params.get("Token", "") or ""
+        return _call_initial_addressee_direct(token=token)
+
     _client, service, transport, history, config, wsse = create_unified_client()
 
     if not hasattr(service, operation):
