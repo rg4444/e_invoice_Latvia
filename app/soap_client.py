@@ -10,6 +10,7 @@ from typing import Any, Dict
 from lxml import etree
 import requests
 from requests.exceptions import SSLError as RequestsSSLError
+from wsdl_utils import build_session_with_sslcontext
 
 
 def wsse_username_token(username: str, password: str, use_digest=True):
@@ -253,9 +254,6 @@ def send_get_initial_addressee_request(
     :param key_pass: Optional private key password
     :return: dict with keys: status (int), headers (dict), body (str), url (str)
     """
-    # Use same TLS/session infrastructure as other calls in this module
-    from .wsdl_utils import build_session_with_sslcontext
-
     try:
         etree.fromstring(envelope_xml.encode("utf-8"))
     except etree.XMLSyntaxError as exc:
