@@ -74,6 +74,30 @@ def _find_security_header(
     return None
 
 
+def _get_or_create_security_header(
+    envelope: etree._Element | etree._ElementTree,
+) -> etree._Element:
+    """Return (or create) the wsse:Security header element."""
+
+    if isinstance(envelope, etree._ElementTree):  # pragma: no cover - defensive
+        envelope = envelope.getroot()
+
+    if envelope is None or not hasattr(envelope, "find"):
+        raise ValueError("SOAP envelope is missing or invalid")
+
+    for ns in SOAP_ENV_NAMESPACES:
+        header = envelope.find(f"{{{ns}}}Header")
+        if header is None:
+            continue
+        security = header.find(f"{{{WSSE_NAMESPACE}}}Security")
+        if security is None:
+            security = wsse_utils.WSSE.Security()
+            header.append(security)
+        return security
+
+    raise ValueError("SOAP envelope does not contain a Header element")
+
+
 class LenientSignature(Signature):
     """Signature handler that skips verification when the response is unsigned."""
 
@@ -171,15 +195,14 @@ class TimestampedSignature(LenientSignature):
         if isinstance(envelope_root, etree._Element):
             envelope = envelope_root
 
-        security = wsse_utils.get_security_header(envelope)
+        security = _get_or_create_security_header(envelope)
         timestamp_tag = f"{{{wsse_utils.ns.WSU}}}Timestamp"
 
-        if security is not None:
-            for existing in list(security):
-                if existing.tag == timestamp_tag:
-                    security.remove(existing)
+        for existing in list(security):
+            if existing.tag == timestamp_tag:
+                security.remove(existing)
 
-            security.insert(0, self._build_timestamp())
+        security.insert(0, self._build_timestamp())
 
         self._apply_signature(envelope)
 
@@ -189,7 +212,7 @@ class TimestampedSignature(LenientSignature):
         # dangling.  Using a fresh lookup keeps the implementation resilient
         # and avoids crashes like ``'NoneType' object has no attribute 'find'``
         # when the header could not be located.
-        security = wsse_utils.get_security_header(envelope)
+        security = _get_or_create_security_header(envelope)
         self._ensure_binary_security_token(security)
         return envelope, headers
 
@@ -235,17 +258,7 @@ class TimestampedSignature(LenientSignature):
         key_info = xmlsec.template.ensure_key_info(signature_node)
 
         # Ensure there is a wsse:Security header we can attach the signature to.
-        security = wsse_utils.get_security_header(envelope)
-        if security is None:
-            # Create a SOAP Header if it is missing
-            header_qname = etree.QName(soap_env, "Header")
-            header = envelope.find(header_qname)
-            if header is None:
-                header = etree.SubElement(envelope, header_qname)
-
-            # Attach a new wsse:Security element
-            security = wsse_utils.WSSE.Security()
-            header.append(security)
+        security = _get_or_create_security_header(envelope)
 
         # At this point, security is guaranteed to be an Element
         security.insert(0, signature_node)
