@@ -769,7 +769,6 @@ def _call_initial_addressee_direct(token: str) -> AddressCallResult:
         token=token or "",
         certfile=config.client_cert,
         key_file=config.client_key,
-        key_password=None,
     )
 
     # Low-level HTTP call (TLS, client cert, Content-Type+action)
@@ -917,7 +916,6 @@ def build_signed_get_initial_addressee_request(
     token: str,
     certfile: str,
     key_file: str | None = None,
-    key_password: str | None = None,
 ) -> str:
     """
     Build a SOAP 1.2 + WS-Addressing + WS-Security (X.509) request envelope
@@ -933,7 +931,6 @@ def build_signed_get_initial_addressee_request(
     :param token: Token string required by GetInitialAddresseeRecordList
     :param certfile: Path to client certificate (PEM), containing public cert and private key or chain
     :param key_file: Optional separate private key file (PEM). If None, certfile is used for key as well.
-    :param key_password: Optional private key password, if the key is encrypted.
     :return: Complete SOAP 1.2 envelope as UTF-8 XML string.
     """
     from lxml import etree
@@ -989,7 +986,6 @@ def build_signed_get_initial_addressee_request(
     signer = TimestampedSignature(
         certfile=certfile,
         key_file=key_file,
-        key_password=key_password,
     )
     signer.apply(envelope, headers={})
 
