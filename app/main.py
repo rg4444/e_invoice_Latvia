@@ -40,6 +40,7 @@ from schematron import run_schematron
 from kosit_runner import run_kosit
 from address_service import call_unified_operation, UnifiedServiceError
 from div_envelope import EnvelopeMetadata, build_div_envelope, parse_recipient_list
+from wssec_debug_service import run_wssec_scenarios
 
 INVOICE_DIR = "/data/invoices"
 SAMPLES_DIR = "/data/samples"
@@ -937,6 +938,40 @@ def wsdl_ui(request: Request):
 def address_page(request: Request):
     cfg = load_config()
     return render("address.html", request, cfg=cfg, addresses_dir=ADDRESSES_DIR)
+
+
+@app.get("/wssec-debug", response_class=HTMLResponse)
+def wssec_debug_page(request: Request):
+    cfg = load_config()
+    return render(
+        "wssec_debug.html",
+        request,
+        cfg=cfg,
+        active_tab="wssec",
+    )
+
+
+@app.post("/wssec-debug/run")
+def wssec_debug_run(
+    token: str = Form(""),
+    scenario: str = Form("all"),
+):
+    try:
+        results = run_wssec_scenarios(token=token or "", scenario_name=scenario)
+        return JSONResponse(
+            content={
+                "ok": True,
+                "results": results,
+            }
+        )
+    except Exception as exc:
+        return JSONResponse(
+            content={
+                "ok": False,
+                "error": f"WS-Security debug failed: {exc}",
+            },
+            status_code=500,
+        )
 
 
 @app.post("/address/initial")
