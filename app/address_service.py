@@ -96,24 +96,55 @@ class TimestampedSignature(LenientSignature):
         key_file: str,
         certfile: str,
         *,
+        key_password: str | None = None,
         timestamp_ttl_seconds: int = 300,
+        sign_alg: str = "rsa-sha1",
+        digest_alg: str = "sha1",
+        signed_parts: tuple[str, ...] = (
+            "body",
+            "timestamp",
+            "action",
+            "to",
+            "message",
+            "replyto",
+        ),
     ) -> None:
         signature_method = None
         digest_method = None
 
         if xmlsec is not None:
-            signature_method = xmlsec.Transform.RSA_SHA1
-            digest_method = xmlsec.Transform.SHA1
+            signature_method = self._resolve_signature_method(sign_alg)
+            digest_method = self._resolve_digest_method(digest_alg)
 
         super().__init__(
             key_file,
             certfile,
+            password=key_password,
             signature_method=signature_method,
             digest_method=digest_method,
         )
         self.timestamp_ttl_seconds = max(int(timestamp_ttl_seconds), 1)
         self._last_timestamp_window: dict[str, str] | None = None
         self._cert_b64 = self._extract_certificate_b64(certfile, key_file)
+        self._signed_parts = tuple(part.lower() for part in (signed_parts or ()))
+
+    @staticmethod
+    def _resolve_signature_method(sign_alg: str) -> Any:
+        if xmlsec is None:
+            return None
+        alg = (sign_alg or "").strip().lower()
+        if alg == "rsa-sha256" and hasattr(xmlsec.Transform, "RSA_SHA256"):
+            return getattr(xmlsec.Transform, "RSA_SHA256")
+        return xmlsec.Transform.RSA_SHA1
+
+    @staticmethod
+    def _resolve_digest_method(digest_alg: str) -> Any:
+        if xmlsec is None:
+            return None
+        alg = (digest_alg or "").strip().lower()
+        if alg == "sha256" and hasattr(xmlsec.Transform, "SHA256"):
+            return getattr(xmlsec.Transform, "SHA256")
+        return xmlsec.Transform.SHA1
 
     def _build_timestamp(self) -> etree._Element:
         now = datetime.now(timezone.utc)
@@ -202,22 +233,45 @@ class TimestampedSignature(LenientSignature):
 
         body = envelope.find(etree.QName(soap_env, "Body"))
         body = self._prepare_node_for_wsu(body)
-        if body is not None:
+        signed_parts = set(self._signed_parts or ())
+        if "body" in signed_parts and body is not None:
             zeep_signature._sign_node(ctx, signature_node, body, digest_method)
 
         timestamp = security.find(etree.QName(wsse_utils.ns.WSU, "Timestamp"))
         timestamp = self._prepare_node_for_wsu(timestamp)
-        if timestamp is not None:
+        if "timestamp" in signed_parts and timestamp is not None:
             zeep_signature._sign_node(ctx, signature_node, timestamp, digest_method)
 
+        header_nodes: dict[str, etree._Element] = {}
         for header in self._iter_addressing_headers(envelope, soap_env):
+            q = etree.QName(header)
+            local = q.localname.lower()
+            key = None
+            if local == "action":
+                key = "action"
+            elif local == "to":
+                key = "to"
+            elif local == "messageid":
+                key = "message"
+            elif local == "replyto":
+                key = "replyto"
+            if key:
+                header_nodes[key] = header
+
+        for part in ("action", "to", "message", "replyto"):
+            if part not in signed_parts:
+                continue
+            header = header_nodes.get(part)
+            if header is None:
+                continue
             prepared = self._prepare_node_for_wsu(header)
-            if prepared is not None:
-                try:
-                    zeep_signature.ensure_id(prepared)
-                except AttributeError:  # pragma: no cover - defensive
-                    pass
-                zeep_signature._sign_node(ctx, signature_node, prepared, digest_method)
+            if prepared is None:
+                continue
+            try:
+                zeep_signature.ensure_id(prepared)
+            except AttributeError:  # pragma: no cover - defensive
+                pass
+            zeep_signature._sign_node(ctx, signature_node, prepared, digest_method)
 
         ctx.sign(signature_node)
 
@@ -916,6 +970,18 @@ def build_signed_get_initial_addressee_request(
     token: str,
     certfile: str,
     key_file: str | None = None,
+    key_password: str | None = None,
+    sign_alg: str = "rsa-sha1",
+    digest_alg: str = "sha1",
+    signed_parts: tuple[str, ...] = (
+        "body",
+        "timestamp",
+        "action",
+        "to",
+        "message",
+        "replyto",
+    ),
+    security_order: tuple[str, ...] = ("bst", "signature", "timestamp"),
 ) -> str:
     """
     Build a SOAP 1.2 + WS-Addressing + WS-Security (X.509) request envelope
@@ -973,6 +1039,7 @@ def build_signed_get_initial_addressee_request(
     message_id.text = f"urn:uuid:{uuid4()}"
 
     reply_to = etree.SubElement(header, etree.QName(NS_WSA, "ReplyTo"))
+    reply_to.set(etree.QName(NS_WSU, "Id"), "id-replyto")
     reply_address = etree.SubElement(reply_to, etree.QName(NS_WSA, "Address"))
     reply_address.text = "http://www.w3.org/2005/08/addressing/anonymous"
 
@@ -986,6 +1053,10 @@ def build_signed_get_initial_addressee_request(
     signer = TimestampedSignature(
         certfile=certfile,
         key_file=key_file,
+        key_password=key_password,
+        sign_alg=sign_alg,
+        digest_alg=digest_alg,
+        signed_parts=signed_parts,
     )
     signer.apply(envelope, headers={})
 
@@ -993,6 +1064,28 @@ def build_signed_get_initial_addressee_request(
     security_el = envelope.find(f".//{{{NS_WSSE}}}Security")
     if security_el is not None:
         security_el.set(f"{{{NS_SOAP12}}}mustUnderstand", "1")
+        timestamp_el = security_el.find(f".//{{{NS_WSU}}}Timestamp")
+        bst_el = security_el.find(f".//{{{NS_WSSE}}}BinarySecurityToken")
+        signature_el = security_el.find(f".//{{{DS_NAMESPACE}}}Signature")
+
+        existing = [timestamp_el, bst_el, signature_el]
+        for node in existing:
+            if node is not None and node.getparent() is security_el:
+                security_el.remove(node)
+
+        order_map = {
+            "timestamp": timestamp_el,
+            "bst": bst_el,
+            "signature": signature_el,
+        }
+        for key in security_order:
+            child = order_map.get(key)
+            if child is not None:
+                security_el.append(child)
+
+        for node in existing:
+            if node is not None and node.getparent() is None:
+                security_el.append(node)
 
     # Return full XML string with declaration
     return etree.tostring(

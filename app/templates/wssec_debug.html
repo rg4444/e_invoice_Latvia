@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2>WS-Security debug – GetInitialAddresseeRecordList</h2>
+
+  <p class="text-muted">
+    This page lets you run a series of WS-Security profiles (algorithms, signed parts, header order)
+    against the DIV UnifiedServiceInterface <code>GetInitialAddresseeRecordList</code> operation.
+    Use it to compare scenarios and identify why the service returns
+    <code>a:InvalidSecurity</code>.
+  </p>
+
+  <div class="card mb-3">
+    <div class="card-header">
+      Test parameters
+    </div>
+    <div class="card-body">
+      <form id="wssec_form">
+        <div class="mb-3">
+          <label for="wssec_token" class="form-label">Token value (uui:Token)</label>
+          <input type="text" class="form-control" id="wssec_token" name="token" placeholder="1">
+          <div class="form-text">
+            For the initial address list, this can usually be left blank or set to <code>1</code>.
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="wssec_scenario" class="form-label">Scenario</label>
+          <select class="form-select" id="wssec_scenario" name="scenario">
+            <option value="all" selected>Run all scenarios</option>
+            <option value="sha1_body_timestamp">SHA1 – sign Body + Timestamp</option>
+            <option value="sha1_body_ts_action_to">SHA1 – sign Body + Timestamp + Action + To</option>
+            <option value="sha256_body_timestamp">SHA256 – sign Body + Timestamp</option>
+          </select>
+          <div class="form-text">
+            Start with "Run all scenarios" to compare behaviour.
+          </div>
+        </div>
+
+        <button type="button" id="wssec_run" class="btn btn-primary">
+          Run WS-Security tests
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      Results
+    </div>
+    <div class="card-body">
+      <pre id="wssec_result"
+           class="bg-dark text-light p-3 rounded small"
+           style="max-height: 420px; overflow-y: auto; font-family: monospace;"
+           hidden></pre>
+      <p class="text-muted mt-2 small">
+        Each scenario saves the full request and response to
+        <code>data/addresses/wssec_debug/</code> for offline inspection.
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function() {
+  const form = document.getElementById('wssec_form');
+  const runBtn = document.getElementById('wssec_run');
+  const resultBox = document.getElementById('wssec_result');
+
+  async function callWssecDebug() {
+    const fd = new FormData(form);
+    const token = document.getElementById('wssec_token').value.trim();
+    if (!token) {
+      // optional: allow blank token for experimentation
+    }
+
+    resultBox.hidden = false;
+    resultBox.textContent = "Running WS-Security scenarios...\n";
+
+    try {
+      const resp = await fetch('/wssec-debug/run', {
+        method: 'POST',
+        body: fd
+      });
+      const data = await resp.json();
+
+      let lines = [];
+      if (!data.ok) {
+        lines.push("Error: " + (data.error || "Unknown error"));
+      } else {
+        for (const r of data.results) {
+          lines.push("Scenario: " + r.scenario + " (" + (r.label || "") + ")");
+          lines.push("  HTTP status: " + r.http_status);
+          if (r.fault_reason) {
+            lines.push("  Fault reason: " + r.fault_reason);
+          }
+          if (r.request_file) {
+            lines.push("  Request file: wssec_debug/" + r.request_file);
+          }
+          if (r.response_file) {
+            lines.push("  Response file: wssec_debug/" + r.response_file);
+          }
+          lines.push("");
+        }
+      }
+
+      resultBox.textContent = lines.join("\n") + "\n\n--- Raw JSON ---\n" +
+                              JSON.stringify(data, null, 2);
+    } catch (err) {
+      resultBox.textContent += "\nERROR: " + err;
+    }
+  }
+
+  runBtn.addEventListener('click', callWssecDebug);
+})();
+</script>
+{% endblock %}
