@@ -234,7 +234,20 @@ class TimestampedSignature(LenientSignature):
 
         key_info = xmlsec.template.ensure_key_info(signature_node)
 
+        # Ensure there is a wsse:Security header we can attach the signature to.
         security = wsse_utils.get_security_header(envelope)
+        if security is None:
+            # Create a SOAP Header if it is missing
+            header_qname = etree.QName(soap_env, "Header")
+            header = envelope.find(header_qname)
+            if header is None:
+                header = etree.SubElement(envelope, header_qname)
+
+            # Attach a new wsse:Security element
+            security = wsse_utils.WSSE.Security()
+            header.append(security)
+
+        # At this point, security is guaranteed to be an Element
         security.insert(0, signature_node)
 
         ctx = xmlsec.SignatureContext()
