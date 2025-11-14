@@ -5,6 +5,7 @@ import re
 import time
 import traceback
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -832,3 +833,92 @@ def get_initial_addressee_record_list(token: str = "") -> AddressCallResult:
 
 def get_changed_addressee_record_list(last_version: str) -> AddressCallResult:
     return call_unified_operation("GetChangedAddresseeRecordList", LastVersion=last_version)
+
+
+def build_signed_get_initial_addressee_request(
+    endpoint: str,
+    token: str,
+    certfile: str,
+    key_file: str | None = None,
+    key_password: str | None = None,
+) -> str:
+    """
+    Build a SOAP 1.2 + WS-Addressing + WS-Security (X.509) request envelope
+    for the GetInitialAddresseeRecordList operation against the VDAA DIV UUI
+    UnifiedServiceInterface.
+
+    This uses the existing TimestampedSignature class in this module to add:
+    - wsu:Timestamp
+    - wsse:BinarySecurityToken (X.509)
+    - ds:Signature over Body + WS-Addressing headers
+
+    :param endpoint: Full HTTPS URL of UnifiedService.svc
+    :param token: Token string required by GetInitialAddresseeRecordList
+    :param certfile: Path to client certificate (PEM), containing public cert and private key or chain
+    :param key_file: Optional separate private key file (PEM). If None, certfile is used for key as well.
+    :param key_password: Optional private key password, if the key is encrypted.
+    :return: Complete SOAP 1.2 envelope as UTF-8 XML string.
+    """
+    from lxml import etree
+
+    # Namespaces
+    NS_SOAP12 = "http://www.w3.org/2003/05/soap-envelope"
+    NS_WSA = "http://www.w3.org/2005/08/addressing"
+    NS_WSSE = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
+    NS_WSU = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
+    NS_UUI = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
+
+    nsmap = {
+        "soap12": NS_SOAP12,
+        "wsa": NS_WSA,
+        "wsse": NS_WSSE,
+        "wsu": NS_WSU,
+        "uui": NS_UUI,
+    }
+
+    # Root envelope (SOAP 1.2)
+    envelope = etree.Element(etree.QName(NS_SOAP12, "Envelope"), nsmap=nsmap)
+    header = etree.SubElement(envelope, etree.QName(NS_SOAP12, "Header"))
+    body = etree.SubElement(envelope, etree.QName(NS_SOAP12, "Body"))
+    body.set(etree.QName(NS_WSU, "Id"), "id-body")
+
+    # WS-Addressing headers (with wsu:Id so they can be referenced by the signature)
+    action = etree.SubElement(header, etree.QName(NS_WSA, "Action"))
+    action.set(etree.QName(NS_WSU, "Id"), "id-action")
+    action.text = (
+        "http://vraa.gov.lv/div/uui/2011/11/"
+        "UnifiedServiceInterface/GetInitialAddresseeRecordList"
+    )
+
+    to_el = etree.SubElement(header, etree.QName(NS_WSA, "To"))
+    to_el.set(etree.QName(NS_WSU, "Id"), "id-to")
+    to_el.text = endpoint
+
+    message_id = etree.SubElement(header, etree.QName(NS_WSA, "MessageID"))
+    message_id.set(etree.QName(NS_WSU, "Id"), "id-message")
+    message_id.text = f"urn:uuid:{uuid4()}"
+
+    reply_to = etree.SubElement(header, etree.QName(NS_WSA, "ReplyTo"))
+    reply_address = etree.SubElement(reply_to, etree.QName(NS_WSA, "Address"))
+    reply_address.text = "http://www.w3.org/2005/08/addressing/anonymous"
+
+    # Body: <uui:GetInitialAddresseeRecordList><uui:Token>...</uui:Token></uui:GetInitialAddresseeRecordList>
+    op_el = etree.SubElement(body, etree.QName(NS_UUI, "GetInitialAddresseeRecordList"))
+    token_el = etree.SubElement(op_el, etree.QName(NS_UUI, "Token"))
+    token_el.text = token
+
+    # Apply WS-Security Timestamp + X.509 Signature using existing TimestampedSignature
+    # (this will add wsse:Security, wsu:Timestamp, wsse:BinarySecurityToken and ds:Signature)
+    signer = TimestampedSignature(
+        certfile=certfile,
+        key_file=key_file,
+        key_password=key_password,
+    )
+    signer.apply(envelope, headers={})
+
+    # Return full XML string with declaration
+    return etree.tostring(
+        envelope,
+        encoding="utf-8",
+        xml_declaration=True,
+    ).decode("utf-8")

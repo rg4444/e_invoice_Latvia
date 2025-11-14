@@ -5,7 +5,9 @@ import uuid
 from datetime import datetime
 from hashlib import sha1
 import secrets
+from typing import Any, Dict
 
+from lxml import etree
 import requests
 from requests.exceptions import SSLError as RequestsSSLError
 
@@ -230,5 +232,61 @@ def send_raw_envelope(cfg: dict, envelope_xml: str) -> dict:
             "client_key_set": bool(client_key),
             "ca_bundle": ca_bundle,
         },
+    }
+
+
+def send_get_initial_addressee_request(
+    endpoint: str,
+    envelope_xml: str,
+    client_cert: str,
+    client_key: str,
+    key_pass: str = "",
+) -> Dict[str, Any]:
+    """
+    Send a prepared SOAP 1.2 envelope to the VDAA UnifiedService.svc endpoint
+    for GetInitialAddresseeRecordList.
+
+    :param endpoint: Full HTTPS URL of UnifiedService.svc
+    :param envelope_xml: Complete signed SOAP envelope (UTF-8 string)
+    :param client_cert: Path to client certificate (PEM) file
+    :param client_key: Path to client private key (PEM) file
+    :param key_pass: Optional private key password
+    :return: dict with keys: status (int), headers (dict), body (str), url (str)
+    """
+    # Use same TLS/session infrastructure as other calls in this module
+    from .wsdl_utils import build_session_with_sslcontext
+
+    try:
+        etree.fromstring(envelope_xml.encode("utf-8"))
+    except etree.XMLSyntaxError as exc:
+        raise ValueError("Envelope XML is not well-formed") from exc
+
+    cfg_endpoint = endpoint
+    session = build_session_with_sslcontext(
+        endpoint=cfg_endpoint,
+        client_cert=client_cert,
+        client_key=client_key,
+        key_pass=key_pass,
+    )
+
+    headers = {
+        "Content-Type": (
+            'application/soap+xml; charset=utf-8; '
+            'action="http://vraa.gov.lv/div/uui/2011/11/'
+            'UnifiedServiceInterface/GetInitialAddresseeRecordList"'
+        )
+    }
+
+    resp = session.post(
+        cfg_endpoint,
+        data=envelope_xml.encode("utf-8"),
+        headers=headers,
+    )
+
+    return {
+        "status": resp.status_code,
+        "headers": dict(resp.headers),
+        "body": resp.text,
+        "url": resp.url,
     }
 
