@@ -946,7 +946,7 @@ def address_initial(token: str = Form("")):
         param_name="Token",
         param_value=token,
         soap_action="http://vraa.gov.lv/div/uui/2011/11/UnifiedServiceInterface/GetInitialAddresseeRecordList",
-        allow_empty=True,
+        allow_empty=False,
     )
 
 

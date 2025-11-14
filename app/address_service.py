@@ -989,6 +989,11 @@ def build_signed_get_initial_addressee_request(
     )
     signer.apply(envelope, headers={})
 
+    # ensure WS-Security header sets soap12:mustUnderstand="1"
+    security_el = envelope.find(f".//{{{NS_WSSE}}}Security")
+    if security_el is not None:
+        security_el.set(f"{{{NS_SOAP12}}}mustUnderstand", "1")
+
     # Return full XML string with declaration
     return etree.tostring(
         envelope,
