@@ -590,6 +590,7 @@ class UnifiedServiceError(Exception):
 @dataclass
 class UnifiedServiceConfig:
     endpoint: str
+    debug_endpoint: str
     wsdl_url: str
     client_cert: str
     client_key: str
@@ -599,6 +600,10 @@ class UnifiedServiceConfig:
 
 DEFAULT_UNIFIED_ENDPOINT = (
     "https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterface/UnifiedService.svc"
+)
+
+DEFAULT_UNIFIED_DEBUG_ENDPOINT = (
+    "https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterfaceDebug/UnifiedService.svc"
 )
 
 
@@ -695,6 +700,9 @@ def get_unified_config() -> UnifiedServiceConfig:
     endpoint_raw = cfg.get("endpoint") or DEFAULT_UNIFIED_ENDPOINT
     endpoint, wsdl_url = _derive_endpoint_and_wsdl(endpoint_raw)
 
+    debug_endpoint_raw = cfg.get("debug_endpoint") or DEFAULT_UNIFIED_DEBUG_ENDPOINT
+    debug_endpoint, _ = _derive_endpoint_and_wsdl(debug_endpoint_raw)
+
     client_cert = _ensure_file(_normalize_path(cfg.get("client_cert")), "Client certificate")
     client_key = _ensure_file(_normalize_path(cfg.get("client_key")), "Client private key")
 
@@ -703,6 +711,7 @@ def get_unified_config() -> UnifiedServiceConfig:
 
     return UnifiedServiceConfig(
         endpoint=endpoint,
+        debug_endpoint=debug_endpoint,
         wsdl_url=wsdl_url,
         client_cert=client_cert,
         client_key=client_key,
