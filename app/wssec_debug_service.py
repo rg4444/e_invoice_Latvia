@@ -55,7 +55,13 @@ def _extract_fault_reason(xml_text: str) -> str:
             xml_text.encode("utf-8"), parser=etree.XMLParser(recover=True)
         )
     except Exception:
+        # Response is not valid XML at all
         return ""
+
+    # When recover=True and parsing fails, fromstring may return None
+    if root is None:
+        return ""
+
     ns = {"s": "http://www.w3.org/2003/05/soap-envelope"}
     text_el = root.find(".//s:Fault/s:Reason/s:Text", namespaces=ns)
     if text_el is not None and text_el.text:
