@@ -85,17 +85,31 @@ def _get_or_create_security_header(
     if envelope is None or not hasattr(envelope, "find"):
         raise ValueError("SOAP envelope is missing or invalid")
 
-    for ns in SOAP_ENV_NAMESPACES:
-        header = envelope.find(f"{{{ns}}}Header")
-        if header is None:
-            continue
-        security = header.find(f"{{{WSSE_NAMESPACE}}}Security")
-        if security is None:
-            security = wsse_utils.WSSE.Security()
-            header.append(security)
-        return security
+    root_ns = etree.QName(envelope).namespace
+    namespaces: tuple[str, ...]
+    if root_ns and root_ns not in SOAP_ENV_NAMESPACES:
+        namespaces = (root_ns, *SOAP_ENV_NAMESPACES)
+    else:
+        namespaces = SOAP_ENV_NAMESPACES
 
-    raise ValueError("SOAP envelope does not contain a Header element")
+    header: etree._Element | None = None
+    for ns in namespaces:
+        header = envelope.find(f"{{{ns}}}Header")
+        if header is not None:
+            break
+
+    if header is None:
+        if not root_ns:
+            raise ValueError("SOAP envelope does not declare a valid namespace")
+        header = etree.Element(etree.QName(root_ns, "Header"))
+        envelope.insert(0, header)
+
+    security = header.find(f"{{{WSSE_NAMESPACE}}}Security")
+    if security is None:
+        security = wsse_utils.WSSE.Security()
+        header.append(security)
+
+    return security
 
 
 class LenientSignature(Signature):
