@@ -4,6 +4,7 @@ CONFIG_PATH = "/data/config.json"
 
 DEFAULTS = {
     "endpoint": "https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterface/UnifiedService.svc",
+    "debug_endpoint": "https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterfaceDebug/UnifiedService.svc",
     "soap_action": "",
     "soap_version": "1.2",
     "use_ws_addressing": True,

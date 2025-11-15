@@ -123,6 +123,11 @@ document.getElementById('fix').addEventListener('click', async ()=>{
     <div class="form-text">UnifiedService test endpoint: <code>https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterface/UnifiedService.svc</code></div>
   </div>
   <div class="mb-3">
+    <label for="debug_endpoint" class="form-label">Debug endpoint</label>
+    <input id="debug_endpoint" name="debug_endpoint" value="{{cfg.debug_endpoint}}" class="form-control" placeholder="https://divtest.vraa.gov.lv/Vraa.Div.WebService.UnifiedInterfaceDebug/UnifiedService.svc">
+    <div class="form-text">WS-Security debug tab uses this endpoint (UnifiedInterfaceDebug). Leave blank to fall back to the test endpoint.</div>
+  </div>
+  <div class="mb-3">
     <label for="soap_action" class="form-label">SOAPAction</label>
     <input id="soap_action" name="soap_action" value="{{cfg.soap_action}}" class="form-control">
   </div>

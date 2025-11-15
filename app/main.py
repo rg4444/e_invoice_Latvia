@@ -668,7 +668,9 @@ def logout(request: Request, next: str | None = Query(None)):
 
 @app.post("/save-config")
 def save_config_route(
-    endpoint: str = Form(""), soap_action: str = Form(""),
+    endpoint: str = Form(""),
+    debug_endpoint: str = Form(""),
+    soap_action: str = Form(""),
     soap_version: str = Form("1.2"), use_ws_addressing: bool = Form(False),
     wsse_mode: str = Form("username"),
     username: str = Form(""), password: str = Form(""),
@@ -695,6 +697,7 @@ def save_config_route(
         parsed_credentials = cfg.get("auth_credentials", [])
     cfg.update({
         "endpoint": endpoint.strip(),
+        "debug_endpoint": debug_endpoint.strip(),
         "soap_action": soap_action.strip(),
         "soap_version": soap_version.strip(),
         "use_ws_addressing": use_ws_addressing,

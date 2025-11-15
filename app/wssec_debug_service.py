@@ -73,7 +73,7 @@ def run_wssec_scenarios(token: str, scenario_name: str = "all") -> List[Dict[str
     os.makedirs(DEBUG_DIR, exist_ok=True)
 
     config = get_unified_config()
-    endpoint = config.endpoint
+    endpoint = config.debug_endpoint or config.endpoint
 
     if scenario_name != "all":
         selected = _find_scenario(scenario_name)
