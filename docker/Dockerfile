@@ -1,7 +1,11 @@
-# Base image
+# syntax=docker/dockerfile:1.6
 FROM python:3.12-slim-bookworm
 
-# Fix Azure / Debian HTTPS issue for apt by forcing HTTP
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Fix Azure 2025 outbound block + install native deps for lxml / signxml / xmlsec1
 RUN sed -i 's/https:/http:/g' /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -9,39 +13,37 @@ RUN sed -i 's/https:/http:/g' /etc/apt/sources.list.d/debian.sources \
        libxml2-dev \
        libxmlsec1-dev \
        xmlsec1 \
-       libssl-dev \
-       libffi-dev \
        pkg-config \
-       curl \
+       libxml2 \
+       libxmlsec1 \
+       libxmlsec1-openssl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
-        fastapi \
-        uvicorn[standard] \
-        jinja2 \
-        requests \
-        lxml \
-        python-dotenv \
-        python-multipart \
-        zeep \
-        xmlsig \
-        signxml
+# Python packages
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir \
+       fastapi \
+       uvicorn[standard] \
+       jinja2 \
+       requests \
+       lxml \
+       python-dotenv \
+       python-multipart \
+       zeep[wssdl] \
+       xmlsig \
+       signxml
 
-# Application code lives under /app
+# App code lives in /app
 WORKDIR /app
 
-# Copy app source (Dockerfile is in ./docker, build context is project root ".")
-# so "../app" is the app directory in the project root
+# Dockerfile is in ./docker, build context is ".", so "../app" is the project app dir
 COPY ../app .
 
-# Copy data directory into image (if you need the templates/configs there)
+# Data volume (certs, kösit jar, config.json etc.)
 COPY ../data /data
 
-# FastAPI will listen on 5000 inside the container
 EXPOSE 5000
 
-# Run the FastAPI app via uvicorn.
-# main.py is in /app, and it defines "app = FastAPI()"
+# Run FastAPI app via Uvicorn.
+# /app/main.py defines: app = FastAPI()
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000"]
