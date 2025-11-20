@@ -33,18 +33,43 @@ RUN chmod +x /usr/local/bin/netcheck.sh
 
 WORKDIR /app
 
-# If you have a lockfile, prefer it. Otherwise keep requirements.txt.
-# COPY requirements.lock ./
-# RUN pip install --no-cache-dir -r requirements.lock
+# Copy only dependency descriptors first (best caching we can do without knowing the exact file names)
+# We copy a wide pattern set; COPY ignores non-matching patterns without failing.
+# The final "COPY . ." (below) brings in the rest of the app.
+COPY pyproject.toml poetry.lock* pdm.lock* \
+     requirements.txt requirements-dev.txt requirements*.txt \
+     setup.cfg setup.py \
+     ./
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies in a defensive way:
+# 1) If requirements.txt exists -> use it.
+# 2) Else if any other requirements*.txt exists -> install them all (common in layered reqs).
+# 3) Else if pyproject.toml exists -> try PEP 621: pip install . (builds wheel & installs)
+# 4) Else if setup.(cfg|py) exists -> pip install .
+# 5) Else -> no dependencies.
+RUN bash -lc '\
+  set -euo pipefail; \
+  if [ -f requirements.txt ]; then \
+    echo "[deps] Installing from requirements.txt"; \
+    pip install --no-cache-dir -r requirements.txt; \
+  elif compgen -G "requirements*.txt" > /dev/null; then \
+    echo "[deps] Installing from all requirements*.txt files"; \
+    for f in requirements*.txt; do \
+      echo "  - $f"; pip install --no-cache-dir -r "$f"; \
+    done; \
+  elif [ -f pyproject.toml ]; then \
+    echo "[deps] Installing via pyproject.toml (PEP 621)"; \
+    pip install --no-cache-dir .; \
+  elif [ -f setup.cfg ] || [ -f setup.py ]; then \
+    echo "[deps] Installing via setup.(cfg|py)"; \
+    pip install --no-cache-dir .; \
+  else \
+    echo "[deps] No dependency descriptors found; skipping pip install."; \
+  fi'
 
-# Copy the rest of the project
+# Now copy the rest of the project
 COPY . .
 
-# Default command (adjust to your app)
-# Example for FastAPI/uvicorn:
+# (keep your CMD/entrypoint as before)
 # EXPOSE 8000
 # CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
