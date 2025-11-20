@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1.6
 FROM python:3.12-slim-bookworm
 
-# Basic env
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
