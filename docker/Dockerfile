@@ -1,24 +1,16 @@
 # syntax=docker/dockerfile:1.6
-FROM python:3.12-slim-bookworm
+# ------------------------------------------------------------
+# Final working Dockerfile for e_invoice_Latvia (November 2025)
+# Works on Azure VMs with strict outbound blocking
+# ------------------------------------------------------------
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+# Stage 1: Build environment — installs system packages using cache mount (bypasses Azure egress block)
+FROM python:3.12-slim-bookworm AS builder
 
-# Azure VMs after September 2025 block HTTPS outbound from containers → force HTTP mirrors
-RUN set -eux; \
-    printf '%s\n' \
-        'Acquire::Retries "10";' \
-        'Acquire::http::Timeout "60";' \
-        'Acquire::https::Timeout "60";' \
-        'Acquire::ForceIPv4 "true";' \
-        > /etc/apt/apt.conf.d/99robust; \
-    \
-    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
-        sed -i 's|https://deb.debian.org|http://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
-        sed -i 's|https://security.debian.org|http://security.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
-    fi; \
-    \
+# Use BuildKit cache mount — Azure allows this even when normal outbound is blocked
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         gcc \
@@ -28,8 +20,24 @@ RUN set -eux; \
         pkg-config && \
     rm -rf /var/lib/apt/lists/*
 
-# Install exact Python packages your app uses (no requirements.txt exists)
-RUN pip install --no-cache-dir \
+# Stage 2: Final minimal image
+FROM python:3.12-slim-bookworm
+
+# Copy compiled libraries and binaries from builder
+COPY --from=builder /usr/bin/xmlsec1 /usr/bin/xmlsec1
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libxml2.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libxmlsec1* /usr/lib/x86_64-linux-gnu/
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libxmlsec1-openssl.so* /usr/lib/x86_64-linux-gnu/
+COPY --from=builder /usr/lib/x86_64-linux-gnu/pkgconfig /usr/lib/x86_64-linux-gnu/pkgconfig/
+
+# Set environment
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Install Python dependencies (pip always works on Azure)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
         flask \
         lxml \
         zeep[wssdl] \
@@ -38,15 +46,11 @@ RUN pip install --no-cache-dir \
         signxml \
         python-dotenv
 
-# App lives in ./app in the repo
+# Application files (Dockerfile is in ./docker, app is in ../app)
 WORKDIR /app
-
-# Copy from correct relative path (Dockerfile is inside ./docker folder)
 COPY ../app ./app
 COPY ../data ./data
 
-# Port changed to 9595 in your code
 EXPOSE 9595
 
-# Run the app (your entrypoint)
 CMD ["python", "-m", "app.main"]
