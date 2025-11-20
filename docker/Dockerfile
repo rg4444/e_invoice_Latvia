@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Fix Azure 2025 outbound block + install native deps for lxml / signxml / xmlsec1
+# Fix Azure / Debian HTTPS issue for apt and install native deps
 RUN sed -i 's/https:/http:/g' /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -31,7 +31,8 @@ RUN pip install --no-cache-dir --upgrade pip \
        python-multipart \
        zeep[wssdl] \
        xmlsig \
-       signxml
+       signxml \
+       itsdangerous
 
 # App code lives in /app
 WORKDIR /app
@@ -39,7 +40,7 @@ WORKDIR /app
 # Dockerfile is in ./docker, build context is ".", so "../app" is the project app dir
 COPY ../app .
 
-# Data volume (certs, kösit jar, config.json etc.)
+# Data directory (certs, configs, etc.)
 COPY ../data /data
 
 EXPOSE 5000
