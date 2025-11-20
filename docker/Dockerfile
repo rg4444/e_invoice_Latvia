@@ -17,6 +17,8 @@ RUN sed -i 's/https:/http:/g' /etc/apt/sources.list.d/debian.sources \
        libxml2 \
        libxmlsec1 \
        libxmlsec1-openssl \
+       curl \
+       ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Python packages
