@@ -29,9 +29,10 @@ RUN pip install --no-cache-dir --upgrade pip \
        lxml \
        python-dotenv \
        python-multipart \
-       zeep[wssdl] \
+       "zeep[xmlsec,wssdl]" \
        xmlsig \
        signxml \
+       xmlsec \
        itsdangerous
 
 # App code lives in /app
