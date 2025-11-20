@@ -5,14 +5,20 @@ ENV PIP_NO_CACHE_DIR=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# APT is already HTTPS on bookworm images; add a few robustness knobs
+# --- Make APT robust and switch mirrors to HTTPS (deb822 file on bookworm) ---
 RUN set -eux; \
+    # Robustness knobs
     printf '%s\n' \
       'Acquire::Retries "5";' \
       'Acquire::http::Timeout "30";' \
       'Acquire::https::Timeout "30";' \
       'Acquire::ForceIPv4 "true";' \
     > /etc/apt/apt.conf.d/99robust; \
+    # On Debian bookworm slim, official sources live in deb822 file below
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -ri 's#http://deb\.debian\.org#https://deb.debian.org#g' /etc/apt/sources.list.d/debian.sources; \
+      sed -ri 's#http://security\.debian\.org#https://security.debian.org#g' /etc/apt/sources.list.d/debian.sources; \
+    fi; \
     apt-get update; \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       gcc \
@@ -28,10 +34,10 @@ RUN set -eux; \
 
 WORKDIR /app
 
-# Bring the project in (expects you run compose from repo root)
+# Copy the whole project (so we don’t fail when requirements*.txt are absent)
 COPY . /app
 
-# Install Python deps if files exist (handles both pip and pyproject flows)
+# Install Python deps (supports both pip requirements and pyproject/setup flows)
 RUN bash -lc 'set -euo pipefail; \
   if [ -f requirements.txt ]; then \
     echo "[deps] requirements.txt"; pip install -r requirements.txt; \
