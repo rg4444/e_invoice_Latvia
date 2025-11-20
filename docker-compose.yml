@@ -1,8 +1,7 @@
 services:
   erekini:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
+    image: e_invoice_latvia:latest
+    container_name: erekini
     ports:
       - "9595:5000"
     volumes:
@@ -16,3 +15,4 @@ services:
       # without rebuilding the container image.
       - KOSIT_JAR=/data/kosit/bin/validator-1.5.2-standalone.jar
       - KOSIT_CONF_DIR=/data/kosit/bis
+    restart: unless-stopped
