@@ -8,12 +8,9 @@ __pycache__/
 .vscode
 .idea
 .coverage
-htmlcov/
 dist/
 build/
 *.log
-data/
-data/**/*
-certs/
-certs/**/*
 node_modules/
+data/
+certs/
