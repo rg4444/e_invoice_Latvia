@@ -1,13 +1,12 @@
 # syntax=docker/dockerfile:1.6
 FROM python:3.12-slim-bookworm
 
-# Avoid stuck builds due to interactive prompts
+# Basic env
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# --- Fix APT for Azure VMs that block container HTTPS outbound after Sept 2025 ---
-# Switch mirrors to plain HTTP (Azure allows it) + make APT very robust
+# Azure VMs after September 2025 block HTTPS outbound from containers → force HTTP mirrors
 RUN set -eux; \
     printf '%s\n' \
         'Acquire::Retries "10";' \
@@ -16,39 +15,39 @@ RUN set -eux; \
         'Acquire::ForceIPv4 "true";' \
         > /etc/apt/apt.conf.d/99robust; \
     \
-    # Debian bookworm slim uses deb822 format → replace https → http \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
         sed -i 's|https://deb.debian.org|http://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
         sed -i 's|https://security.debian.org|http://security.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
     fi; \
     \
-    apt-get update; \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
         gcc \
         libxml2-dev \
         libxmlsec1-dev \
         xmlsec1 \
-        pkg-config \
-        ca-certificates \
-        curl \
-        openssl; \
+        pkg-config && \
     rm -rf /var/lib/apt/lists/*
 
-# --- Application setup ---
+# Install exact Python packages your app uses (no requirements.txt exists)
+RUN pip install --no-cache-dir \
+        flask \
+        lxml \
+        zeep[wssdl] \
+        requests \
+        xmlsig \
+        signxml \
+        python-dotenv
+
+# App lives in ./app in the repo
 WORKDIR /app
 
-# Copy only requirements first (leverage Docker layer caching)
-COPY requirements.txt .
+# Copy from correct relative path (Dockerfile is inside ./docker folder)
+COPY ../app ./app
+COPY ../data ./data
 
-# Upgrade pip and install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Port changed to 9595 in your code
+EXPOSE 9595
 
-# Copy the rest of the app
-COPY . .
-
-# Expose port (adjust if your app uses another)
-EXPOSE 8000
-
-# Default command (change if you use something else, e.g. gunicorn, uvicorn, etc.)
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Run the app (your entrypoint)
+CMD ["python", "-m", "app.main"]
