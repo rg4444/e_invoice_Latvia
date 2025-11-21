@@ -5,9 +5,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Fix Azure / Debian HTTPS issue for apt and install native deps
-RUN sed -i 's/https:/http:/g' /etc/apt/sources.list.d/debian.sources \
-    && apt-get update \
+# Install native dependencies + debugging tools
+RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        gcc \
        libxml2-dev \
@@ -19,6 +18,9 @@ RUN sed -i 's/https:/http:/g' /etc/apt/sources.list.d/debian.sources \
        libxmlsec1-openssl \
        curl \
        ca-certificates \
+       procps \
+       iputils-ping \
+       net-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Python packages
