@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <h2>PDF parsing / OCR</h2>
+
+  <p class="text-muted small">
+    Upload a PDF invoice, run OCR inside the Docker container, map fields into a unified
+    <code>PdfInvoice</code> XML, validate it against
+    <code>{{ pdf_xsd }}</code> and inspect the result below.
+  </p>
+
+  <!-- Upload form -->
+  <div class="card mb-3">
+    <div class="card-header">Upload PDF</div>
+    <div class="card-body">
+      <form id="pdfUploadForm">
+        <div class="mb-3">
+          <input type="file" id="pdfFile" name="file" accept="application/pdf" class="form-control">
+          <div class="form-text">
+            Only PDF files are supported (scanned or digital).
+          </div>
+        </div>
+        <button type="button" id="btnUploadPdf" class="btn btn-secondary">
+          Upload PDF
+        </button>
+      </form>
+      <div class="mt-2 small text-muted" id="pdfUploadStatus"></div>
+    </div>
+  </div>
+
+  <!-- OCR / XML actions -->
+  <div class="card mb-3">
+    <div class="card-header">OCR &amp; XML</div>
+    <div class="card-body">
+      <input type="hidden" id="pdfPath" value="">
+      <div class="mb-2">
+        <button type="button" id="btnRunOcr" class="btn btn-primary" disabled>
+          Run OCR &amp; generate XML
+        </button>
+        <button type="button" id="btnValidateXml" class="btn btn-outline-secondary" disabled>
+          Validate XML (PDF XSD)
+        </button>
+      </div>
+      <p class="small text-muted mb-0">
+        The generated XML is only an intermediate transformation.
+        In the next phase it will be transformed into the official eInvoice UBL schema.
+      </p>
+    </div>
+  </div>
+
+  <!-- Black window output -->
+  <div class="card">
+    <div class="card-header">
+      OCR transform XML
+    </div>
+    <div class="card-body">
+      <pre id="pdfXmlOutput"
+           class="bg-dark text-light p-3 rounded small"
+           style="max-height: 420px; overflow-y: auto; font-family: monospace;"
+           hidden></pre>
+      <div id="pdfXmlStatus" class="small mt-2 text-muted"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const pdfFileInput = document.getElementById('pdfFile');
+  const uploadBtn = document.getElementById('btnUploadPdf');
+  const statusBox = document.getElementById('pdfUploadStatus');
+  const pdfPathInput = document.getElementById('pdfPath');
+  const ocrBtn = document.getElementById('btnRunOcr');
+  const validateBtn = document.getElementById('btnValidateXml');
+  const xmlOutput = document.getElementById('pdfXmlOutput');
+  const xmlStatus = document.getElementById('pdfXmlStatus');
+
+  uploadBtn.addEventListener('click', async () => {
+    const file = pdfFileInput.files[0];
+    if (!file) {
+      statusBox.textContent = "Please choose a PDF file first.";
+      return;
+    }
+    const fd = new FormData();
+    fd.append('file', file);
+
+    statusBox.textContent = "Uploading...";
+    try {
+      const resp = await fetch('/pdfparse/upload', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!data.ok) {
+        statusBox.textContent = "Upload failed: " + (data.error || resp.statusText);
+        return;
+      }
+      pdfPathInput.value = data.pdf_path;
+      statusBox.textContent = "Uploaded as: " + data.saved_as;
+      ocrBtn.disabled = false;
+      xmlOutput.hidden = true;
+      xmlOutput.textContent = "";
+      xmlStatus.textContent = "";
+      validateBtn.disabled = true;
+    } catch (e) {
+      statusBox.textContent = "Upload error: " + e;
+    }
+  });
+
+  ocrBtn.addEventListener('click', async () => {
+    const pdfPath = pdfPathInput.value;
+    if (!pdfPath) {
+      xmlStatus.textContent = "No PDF uploaded.";
+      return;
+    }
+    const fd = new FormData();
+    fd.append('pdf_path', pdfPath);
+
+    xmlOutput.hidden = false;
+    xmlOutput.textContent = "Running OCR and building XML...\n";
+    xmlStatus.textContent = "";
+
+    try {
+      const resp = await fetch('/pdfparse/run', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!data.ok) {
+        xmlOutput.textContent += "\nERROR: " + (data.error || resp.statusText);
+        return;
+      }
+      xmlOutput.textContent = data.xml;
+      validateBtn.disabled = false;
+    } catch (e) {
+      xmlOutput.textContent += "\nERROR: " + e;
+    }
+  });
+
+  validateBtn.addEventListener('click', async () => {
+    const xml = xmlOutput.textContent;
+    if (!xml || xml.trim() === "") {
+      xmlStatus.textContent = "Nothing to validate.";
+      return;
+    }
+    const fd = new FormData();
+    fd.append('xml_text', xml);
+
+    xmlStatus.textContent = "Validating against PDF transform XSD...";
+    try {
+      const resp = await fetch('/pdfparse/validate', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (data.ok) {
+        xmlStatus.textContent = "Validation OK: " + data.message;
+      } else {
+        xmlStatus.textContent = "Validation error (" + data.stage + "): " + (data.error || (data.errors || []).join("; "));
+      }
+    } catch (e) {
+      xmlStatus.textContent = "Validation error: " + e;
+    }
+  });
+</script>
+{% endblock %}

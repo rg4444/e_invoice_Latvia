@@ -21,6 +21,11 @@ RUN apt-get update \
        procps \
        iputils-ping \
        net-tools \
+       tesseract-ocr \
+       tesseract-ocr-eng \
+       tesseract-ocr-lav \
+       ocrmypdf \
+       ghostscript \
     && rm -rf /var/lib/apt/lists/*
 
 # Python packages
