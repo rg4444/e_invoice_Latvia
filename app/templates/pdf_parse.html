@@ -33,6 +33,7 @@
     <div class="card-header">OCR &amp; XML</div>
     <div class="card-body">
       <input type="hidden" id="pdfPath" value="">
+      <input type="hidden" id="xmlPath" value="">
       <div class="mb-2">
         <button type="button" id="btnRunOcr" class="btn btn-primary" disabled>
           Run OCR &amp; generate XML
@@ -61,6 +62,24 @@
       <div id="pdfXmlStatus" class="small mt-2 text-muted"></div>
     </div>
   </div>
+
+  <!-- XML editor -->
+  <div class="card mt-3" id="xmlEditorCard" hidden>
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>Parsed XML editor</span>
+      <div class="d-flex gap-2">
+        <button type="button" id="btnSaveXml" class="btn btn-primary btn-sm" disabled>Save XML</button>
+        <button type="button" id="btnExportXml" class="btn btn-outline-secondary btn-sm" disabled>Export XML</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <p class="small text-muted mb-2">
+        Review and edit the parsed XML fields below. The layout mirrors the XML structure and field names.
+      </p>
+      <div id="xmlFormContainer" class="mt-3"></div>
+      <div id="xmlEditorStatus" class="small text-muted mt-3"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -68,10 +87,18 @@
   const uploadBtn = document.getElementById('btnUploadPdf');
   const statusBox = document.getElementById('pdfUploadStatus');
   const pdfPathInput = document.getElementById('pdfPath');
+  const xmlPathInput = document.getElementById('xmlPath');
   const ocrBtn = document.getElementById('btnRunOcr');
   const validateBtn = document.getElementById('btnValidateXml');
   const xmlOutput = document.getElementById('pdfXmlOutput');
   const xmlStatus = document.getElementById('pdfXmlStatus');
+  const xmlEditorCard = document.getElementById('xmlEditorCard');
+  const xmlFormContainer = document.getElementById('xmlFormContainer');
+  const xmlEditorStatus = document.getElementById('xmlEditorStatus');
+  const saveXmlBtn = document.getElementById('btnSaveXml');
+  const exportXmlBtn = document.getElementById('btnExportXml');
+
+  let currentXmlDoc = null;
 
   uploadBtn.addEventListener('click', async () => {
     const file = pdfFileInput.files[0];
@@ -97,6 +124,10 @@
       xmlOutput.textContent = "";
       xmlStatus.textContent = "";
       validateBtn.disabled = true;
+      xmlPathInput.value = '';
+      xmlEditorCard.hidden = true;
+      saveXmlBtn.disabled = true;
+      exportXmlBtn.disabled = true;
     } catch (e) {
       statusBox.textContent = "Upload error: " + e;
     }
@@ -123,7 +154,11 @@
         return;
       }
       xmlOutput.textContent = data.xml;
+      xmlPathInput.value = data.xml_path || '';
       validateBtn.disabled = false;
+      renderXmlFormFromString(data.xml);
+      saveXmlBtn.disabled = false;
+      exportXmlBtn.disabled = false;
     } catch (e) {
       xmlOutput.textContent += "\nERROR: " + e;
     }
@@ -150,6 +185,189 @@
     } catch (e) {
       xmlStatus.textContent = "Validation error: " + e;
     }
+  });
+
+  function serializeCurrentXml() {
+    if (!currentXmlDoc) {
+      return '';
+    }
+    const serializer = new XMLSerializer();
+    let xmlText = serializer.serializeToString(currentXmlDoc);
+    if (!xmlText.startsWith('<?xml')) {
+      xmlText = '<?xml version="1.0" encoding="UTF-8"?>\n' + xmlText;
+    }
+    return xmlText;
+  }
+
+  function refreshXmlOutput() {
+    const xmlText = serializeCurrentXml();
+    if (xmlText) {
+      xmlOutput.hidden = false;
+      xmlOutput.textContent = xmlText;
+    }
+  }
+
+  function createInput(label, value, onChange) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mb-2';
+
+    const lbl = document.createElement('label');
+    lbl.className = 'form-label form-label-sm mb-1';
+    lbl.textContent = label;
+    wrapper.appendChild(lbl);
+
+    const isLong = (value || '').includes('\n') || (value || '').length > 80;
+    let control;
+    if (isLong) {
+      control = document.createElement('textarea');
+      control.rows = 3;
+    } else {
+      control = document.createElement('input');
+      control.type = 'text';
+    }
+    control.className = 'form-control form-control-sm';
+    control.value = value || '';
+    control.addEventListener('input', () => onChange(control.value));
+    wrapper.appendChild(control);
+    return wrapper;
+  }
+
+  function renderXmlNode(node, container) {
+    const section = document.createElement('div');
+    section.className = 'mb-3 border rounded p-3';
+
+    const heading = document.createElement('div');
+    heading.className = 'fw-semibold';
+    heading.textContent = node.tagName;
+    section.appendChild(heading);
+
+    if (node.attributes && node.attributes.length > 0) {
+      const attrsRow = document.createElement('div');
+      attrsRow.className = 'row g-2 mt-2';
+      Array.from(node.attributes).forEach(attr => {
+        const col = document.createElement('div');
+        col.className = 'col-md-4';
+        const input = createInput(attr.name, attr.value, (val) => {
+          node.setAttribute(attr.name, val);
+          refreshXmlOutput();
+        });
+        col.appendChild(input);
+        attrsRow.appendChild(col);
+      });
+      section.appendChild(attrsRow);
+    }
+
+    const children = Array.from(node.children || []);
+    if (children.length === 0) {
+      const input = createInput(node.tagName, node.textContent || '', (val) => {
+        node.textContent = val;
+        refreshXmlOutput();
+      });
+      input.classList.add('mb-0');
+      section.appendChild(input);
+    } else {
+      const childContainer = document.createElement('div');
+      childContainer.className = 'mt-3 ps-3 border-start border-2 border-light';
+      children.forEach(child => renderXmlNode(child, childContainer));
+      section.appendChild(childContainer);
+    }
+
+    container.appendChild(section);
+  }
+
+  function renderXmlFormFromString(xmlText) {
+    if (!xmlText) {
+      return;
+    }
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, 'application/xml');
+    const parseError = doc.querySelector('parsererror');
+    if (parseError) {
+      xmlEditorStatus.textContent = 'XML parse error: ' + parseError.textContent;
+      return;
+    }
+    currentXmlDoc = doc;
+    xmlFormContainer.innerHTML = '';
+    renderXmlNode(doc.documentElement, xmlFormContainer);
+    xmlEditorCard.hidden = false;
+    xmlEditorStatus.textContent = 'Loaded parsed XML for editing.';
+    refreshXmlOutput();
+  }
+
+  saveXmlBtn.addEventListener('click', async () => {
+    if (!currentXmlDoc) {
+      xmlEditorStatus.textContent = 'Nothing to save yet.';
+      return;
+    }
+    const xmlPath = xmlPathInput.value;
+    if (!xmlPath) {
+      xmlEditorStatus.textContent = 'No XML file path available to save.';
+      return;
+    }
+    const fd = new FormData();
+    fd.append('xml_text', serializeCurrentXml());
+    fd.append('xml_path', xmlPath);
+
+    xmlEditorStatus.textContent = 'Saving XML...';
+    try {
+      const resp = await fetch('/pdfparse/save', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!data.ok) {
+        xmlEditorStatus.textContent = 'Save failed: ' + (data.error || resp.statusText);
+        return;
+      }
+      xmlEditorStatus.textContent = 'XML saved successfully.';
+    } catch (e) {
+      xmlEditorStatus.textContent = 'Save error: ' + e;
+    }
+  });
+
+  exportXmlBtn.addEventListener('click', async () => {
+    if (!currentXmlDoc) {
+      xmlEditorStatus.textContent = 'No XML to export.';
+      return;
+    }
+
+    const xmlPath = xmlPathInput.value;
+    let downloadUrl = '';
+
+    if (xmlPath) {
+      const fd = new FormData();
+      fd.append('xml_text', serializeCurrentXml());
+      fd.append('xml_path', xmlPath);
+      xmlEditorStatus.textContent = 'Saving XML before export...';
+      try {
+        const saveResp = await fetch('/pdfparse/save', { method: 'POST', body: fd });
+        const saveData = await saveResp.json();
+        if (!saveData.ok) {
+          xmlEditorStatus.textContent = 'Export aborted: ' + (saveData.error || saveResp.statusText);
+          return;
+        }
+        downloadUrl = '/pdfparse/export?xml_path=' + encodeURIComponent(xmlPath);
+      } catch (e) {
+        xmlEditorStatus.textContent = 'Export failed while saving: ' + e;
+        return;
+      }
+    }
+
+    if (!downloadUrl) {
+      const xmlText = serializeCurrentXml();
+      const blob = new Blob([xmlText], { type: 'application/xml' });
+      downloadUrl = URL.createObjectURL(blob);
+    }
+
+    const link = document.createElement('a');
+    const fileName = (xmlPathInput.value ? xmlPathInput.value.split('/').pop() : 'pdf_invoice.xml') || 'pdf_invoice.xml';
+    link.href = downloadUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    if (downloadUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(downloadUrl);
+    }
+    xmlEditorStatus.textContent = 'XML exported for download.';
   });
 </script>
 {% endblock %}
