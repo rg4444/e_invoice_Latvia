@@ -41,18 +41,24 @@ from kosit_runner import run_kosit
 from address_service import call_unified_operation, UnifiedServiceError
 from div_envelope import EnvelopeMetadata, build_div_envelope, parse_recipient_list
 from wssec_debug_service import run_wssec_scenarios
+import pdf_ocr
 
 INVOICE_DIR = "/data/invoices"
 SAMPLES_DIR = "/data/samples"
 XSD_DIR = "/data/xsd"
 SCHEMATRON_DIR = "/data/schematron"
 ADDRESSES_DIR = "/data/addresses"
+PDF_UPLOAD_DIR = "/data/pdf_uploads"
+PDF_XML_DIR = "/data/pdf_transform_xml"
+PDF_XSD_PATH = os.path.join(XSD_DIR, "pdf_invoice_transform.xsd")
 ADDRESSEE_NS = "http://vraa.gov.lv/xmlschemas/div/uui/2011/11"
 SOAP11_NS = "http://schemas.xmlsoap.org/soap/envelope/"
 SOAP12_NS = "http://www.w3.org/2003/05/soap-envelope"
 
 os.makedirs(INVOICE_DIR, exist_ok=True)
 os.makedirs(ADDRESSES_DIR, exist_ok=True)
+os.makedirs(PDF_UPLOAD_DIR, exist_ok=True)
+os.makedirs(PDF_XML_DIR, exist_ok=True)
 
 load_dotenv()
 LOG_DIR = "/data/logs"
@@ -897,6 +903,70 @@ def invoices_page(request: Request):
                     "mtime": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
                 })
     return render("invoices.html", request, files=files)
+
+
+@app.get("/pdfparse", response_class=HTMLResponse)
+def pdfparse_page(request: Request):
+    cfg = load_config()
+    return render("pdf_parse.html", request, cfg=cfg, pdf_xsd=PDF_XSD_PATH)
+
+
+@app.post("/pdfparse/upload")
+async def pdfparse_upload(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    safe_name = file.filename.replace("/", "_").replace("\\", "_")
+    dst = os.path.join(PDF_UPLOAD_DIR, f"{ts}-{safe_name}")
+
+    with open(dst, "wb") as f:
+        f.write(await file.read())
+
+    return JSONResponse({"ok": True, "pdf_path": dst, "saved_as": os.path.basename(dst)})
+
+
+@app.post("/pdfparse/run")
+async def pdfparse_run(pdf_path: str = Form(...)):
+    base = os.path.abspath(PDF_UPLOAD_DIR)
+    p = os.path.abspath(pdf_path)
+    if not p.startswith(base) or not os.path.exists(p):
+        raise HTTPException(status_code=400, detail="Invalid PDF path")
+
+    try:
+        xml_bytes = pdf_ocr.process_pdf_to_xml(p)
+    except Exception as e:
+        logging.exception("PDF OCR failed")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    xml_name = os.path.splitext(os.path.basename(p))[0] + f"-transform-{ts}.xml"
+    xml_path = os.path.join(PDF_XML_DIR, xml_name)
+    with open(xml_path, "wb") as f:
+        f.write(xml_bytes)
+
+    return JSONResponse({"ok": True, "xml": xml_bytes.decode("utf-8"), "xml_path": xml_path})
+
+
+@app.post("/pdfparse/validate")
+def pdfparse_validate(xml_text: str = Form(...)):
+    try:
+        xml_doc = etree.fromstring(xml_text.encode("utf-8"))
+    except Exception as e:
+        return JSONResponse({"ok": False, "stage": "parse", "error": str(e)}, status_code=400)
+
+    try:
+        parser = etree.XMLParser(resolve_entities=False)
+        with open(PDF_XSD_PATH, "rb") as f:
+            schema_doc = etree.parse(f, parser)
+        schema = etree.XMLSchema(schema_doc)
+        schema.assertValid(xml_doc)
+        return JSONResponse({"ok": True, "message": "PDF transform XSD validation passed"})
+    except etree.DocumentInvalid as e:
+        errs = [str(err) for err in schema.error_log] if 'schema' in locals() else [str(e)]
+        return JSONResponse({"ok": False, "stage": "xsd", "errors": errs}, status_code=422)
+    except Exception as e:
+        return JSONResponse({"ok": False, "stage": "xsd-load", "error": str(e)}, status_code=400)
 
 
 @app.post("/fetch-schemas")

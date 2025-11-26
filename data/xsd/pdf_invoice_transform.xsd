@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="urn:lv:einvoice:pdf-transform:1.0"
+           xmlns="urn:lv:einvoice:pdf-transform:1.0"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified">
+
+  <!-- === Basic reusable types === -->
+
+  <xs:simpleType name="CurrencyCodeType">
+    <xs:restriction base="xs:string">
+      <xs:length value="3"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="CountryCodeType">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="2"/>
+      <xs:maxLength value="3"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="AmountType">
+    <xs:restriction base="xs:decimal">
+      <xs:fractionDigits value="2"/>
+      <xs:minInclusive value="-9999999999.99"/>
+      <xs:maxInclusive value="9999999999.99"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="QuantityType">
+    <xs:restriction base="xs:decimal">
+      <xs:fractionDigits value="4"/>
+      <xs:minInclusive value="0"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- === Parties === -->
+
+  <xs:complexType name="PartyType">
+    <xs:sequence>
+      <xs:element name="Name" type="xs:string"/>
+      <xs:element name="LegalRegistrationNumber" type="xs:string" minOccurs="0"/>
+      <xs:element name="VATNumber" type="xs:string" minOccurs="0"/>
+      <xs:element name="AddressLine" type="xs:string" minOccurs="0"/>
+      <xs:element name="City" type="xs:string" minOccurs="0"/>
+      <xs:element name="Postcode" type="xs:string" minOccurs="0"/>
+      <xs:element name="CountryName" type="xs:string" minOccurs="0"/>
+      <xs:element name="CountryCode" type="CountryCodeType" minOccurs="0"/>
+      <xs:element name="Phone" type="xs:string" minOccurs="0"/>
+      <xs:element name="Email" type="xs:string" minOccurs="0"/>
+      <xs:element name="Website" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- === Bank accounts === -->
+
+  <xs:complexType name="BankAccountType">
+    <xs:sequence>
+      <xs:element name="BankName" type="xs:string"/>
+      <xs:element name="IBAN" type="xs:string"/>
+      <xs:element name="SWIFT" type="xs:string" minOccurs="0"/>
+      <xs:element name="Currency" type="CurrencyCodeType" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="PaymentDetailsType">
+    <xs:sequence>
+      <xs:element name="BankAccount" type="BankAccountType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- === Contact === -->
+
+  <xs:complexType name="ContactType">
+    <xs:sequence>
+      <xs:element name="Name" type="xs:string"/>
+      <xs:element name="Role" type="xs:string" minOccurs="0"/>
+      <xs:element name="Email" type="xs:string" minOccurs="0"/>
+      <xs:element name="Phone" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- === Header === -->
+
+  <xs:complexType name="HeaderType">
+    <xs:sequence>
+      <xs:element name="InvoiceNumber" type="xs:string"/>
+      <xs:element name="TaxInvoiceNumber" type="xs:string" minOccurs="0"/>
+      <xs:element name="InvoiceDate" type="xs:date"/>
+      <xs:element name="DueDate" type="xs:date" minOccurs="0"/>
+      <xs:element name="TaxDate" type="xs:date" minOccurs="0"/>
+      <xs:element name="Currency" type="CurrencyCodeType" minOccurs="0"/>
+      <xs:element name="EngagementNumber" type="xs:string" minOccurs="0"/>
+      <xs:element name="OriginalFileName" type="xs:string" minOccurs="0"/>
+      <xs:element name="SupplierInvoiceId" type="xs:string" minOccurs="0"/>
+      <xs:element name="BuyerReference" type="xs:string" minOccurs="0"/>
+      <xs:element name="FreeTextNote" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- === Lines === -->
+
+  <xs:complexType name="InvoiceLineType">
+    <xs:sequence>
+      <xs:element name="LineNumber" type="xs:int" minOccurs="0"/>
+      <xs:element name="Description" type="xs:string"/>
+      <xs:element name="Quantity" type="QuantityType" minOccurs="0"/>
+      <xs:element name="UnitOfMeasure" type="xs:string" minOccurs="0"/>
+      <xs:element name="UnitPrice" type="AmountType" minOccurs="0"/>
+      <xs:element name="NetAmount" type="AmountType" minOccurs="0"/>
+      <xs:element name="TaxRate" type="AmountType" minOccurs="0"/>
+      <xs:element name="TaxAmount" type="AmountType" minOccurs="0"/>
+      <xs:element name="GrossAmount" type="AmountType" minOccurs="0"/>
+      <xs:element name="AccountCode" type="xs:string" minOccurs="0"/>
+      <xs:element name="CostCenter" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="LinesType">
+    <xs:sequence>
+      <xs:element name="Line" type="InvoiceLineType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- === Totals === -->
+
+  <xs:complexType name="TotalsType">
+    <xs:sequence>
+      <xs:element name="LineExtensionAmount" type="AmountType" minOccurs="0"/>
+      <xs:element name="TaxExclusiveAmount" type="AmountType" minOccurs="0"/>
+      <xs:element name="TaxInclusiveAmount" type="AmountType" minOccurs="0"/>
+      <xs:element name="PrepaidAmount" type="AmountType" minOccurs="0"/>
+      <xs:element name="PayableAmount" type="AmountType" minOccurs="0"/>
+      <xs:element name="VATTotal" type="AmountType" minOccurs="0"/>
+      <xs:element name="VATRate" type="AmountType" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- === Root element === -->
+
+  <xs:complexType name="PdfInvoiceType">
+    <xs:sequence>
+      <xs:element name="Header" type="HeaderType"/>
+      <xs:element name="Supplier" type="PartyType"/>
+      <xs:element name="Customer" type="PartyType"/>
+      <xs:element name="PaymentDetails" type="PaymentDetailsType" minOccurs="0"/>
+      <xs:element name="Contact" type="ContactType" minOccurs="0"/>
+      <xs:element name="Lines" type="LinesType"/>
+      <xs:element name="Totals" type="TotalsType" minOccurs="0"/>
+      <!-- Optional full OCR text for debugging / audit -->
+      <xs:element name="RawOcrText" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="schemaVersion" type="xs:string" use="optional" default="1.0"/>
+    <xs:attribute name="createdAt" type="xs:dateTime" use="optional"/>
+    <xs:attribute name="sourceSystem" type="xs:string" use="optional"/>
+  </xs:complexType>
+
+  <xs:element name="PdfInvoice" type="PdfInvoiceType"/>
+
+</xs:schema>
