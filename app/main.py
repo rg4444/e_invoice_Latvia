@@ -969,6 +969,34 @@ def pdfparse_validate(xml_text: str = Form(...)):
         return JSONResponse({"ok": False, "stage": "xsd-load", "error": str(e)}, status_code=400)
 
 
+@app.post("/pdfparse/save")
+def pdfparse_save(xml_text: str = Form(...), xml_path: str = Form(...)):
+    base = os.path.abspath(PDF_XML_DIR)
+    target = os.path.abspath(xml_path)
+    if not target.startswith(base):
+        raise HTTPException(status_code=400, detail="Invalid XML path")
+
+    try:
+        etree.fromstring(xml_text.encode("utf-8"))
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": f"Invalid XML: {e}"}, status_code=400)
+
+    with open(target, "wb") as f:
+        f.write(xml_text.encode("utf-8"))
+
+    return JSONResponse({"ok": True, "message": "XML saved"})
+
+
+@app.get("/pdfparse/export")
+def pdfparse_export(xml_path: str = Query(...)):
+    base = os.path.abspath(PDF_XML_DIR)
+    target = os.path.abspath(xml_path)
+    if not target.startswith(base) or not os.path.exists(target):
+        raise HTTPException(status_code=400, detail="Invalid XML path")
+
+    return FileResponse(target, media_type="application/xml", filename=os.path.basename(target))
+
+
 @app.post("/fetch-schemas")
 def fetch_schemas():
     try:
