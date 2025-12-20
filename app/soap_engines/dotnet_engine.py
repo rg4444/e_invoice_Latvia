@@ -55,6 +55,8 @@ def call_dotnet(
     out_dir: str,
     *,
     endpoint_mode: str = "normal",
+    cert_pfx_path: str | None = None,
+    cert_pfx_password: str | None = None,
     **_: Any,
 ) -> dict[str, Any]:
     cfg = load_config()
@@ -88,8 +90,10 @@ def call_dotnet(
     if token:
         cmd.extend(["--token", token])
 
-    cert_pfx = (cfg.get("DOTNET_CERT_PFX_PATH") or os.getenv("DOTNET_CERT_PFX_PATH") or "").strip()
-    cert_pass = (
+    cert_pfx = (cert_pfx_path or "").strip() or (
+        (cfg.get("DOTNET_CERT_PFX_PATH") or os.getenv("DOTNET_CERT_PFX_PATH") or "").strip()
+    )
+    cert_pass = (cert_pfx_password or "").strip() or (
         cfg.get("DOTNET_CERT_PFX_PASSWORD")
         or os.getenv("DOTNET_CERT_PFX_PASSWORD")
         or ""

@@ -1152,6 +1152,9 @@ async def wssec_debug_run_sdk_call(request: Request):
     operation = (data.get("operation") or "GetInitialAddresseeRecordList").strip()
     token = (data.get("token") or "").strip()
     use_debug_endpoint = _truthy(data.get("use_debug_endpoint", True))
+    use_app_config_certs = _truthy(data.get("use_app_config_certs", True))
+    pfx_path = (data.get("pfx_path") or "").strip() or None
+    pfx_password = (data.get("pfx_password") or "").strip() or None
 
     if engine not in {"dotnet", "java"}:
         return JSONResponse(
@@ -1173,6 +1176,9 @@ async def wssec_debug_run_sdk_call(request: Request):
             operation=operation,
             token=token,
             endpoint_mode=endpoint_mode,
+            use_app_config_certs=use_app_config_certs,
+            pfx_path=pfx_path,
+            pfx_password=pfx_password,
         )
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)

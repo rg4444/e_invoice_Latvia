@@ -12,6 +12,7 @@ from address_service import (
     build_signed_get_initial_addressee_request,
 )
 from soap_client import send_get_initial_addressee_request
+from soap_engines.cert_utils import resolve_pfx_material
 from soap_engines.dotnet_engine import call_dotnet
 from soap_engines.java_vdaa_sdk import run_java_sdk_call
 from storage import load_config
@@ -255,6 +256,9 @@ def run_wssec_single_call(
     operation: str,
     token: str,
     endpoint_mode: str = "debug",
+    use_app_config_certs: bool = True,
+    pfx_path: str | None = None,
+    pfx_password: str | None = None,
 ) -> Dict[str, Any]:
     os.makedirs(DEBUG_DIR, exist_ok=True)
     cfg = load_config()
@@ -264,28 +268,38 @@ def run_wssec_single_call(
         endpoint = (cfg.get("endpoint") or "").strip()
 
     engine = engine.strip().lower()
-    if engine == "dotnet":
-        result = call_dotnet(
-            operation=operation,
-            token=token,
-            endpoint=endpoint,
-            out_dir=DEBUG_DIR,
-            endpoint_mode=endpoint_mode,
-        )
-    elif engine == "java":
-        cert_pfx_path = (cfg.get("client_p12") or "").strip() or None
-        cert_pfx_password = (cfg.get("p12_password") or "").strip() or None
-        result = run_java_sdk_call(
-            operation=operation,
-            token=token,
-            endpoint=endpoint,
-            out_dir=DEBUG_DIR,
-            endpoint_mode=endpoint_mode,
-            cert_pfx_path=cert_pfx_path,
-            cert_pfx_password=cert_pfx_password,
-        )
-    else:
-        raise ValueError(f"Unsupported engine for single call: {engine}")
+    pfx_material = None
+    if use_app_config_certs:
+        pfx_material = resolve_pfx_material(cfg)
+        pfx_path = pfx_material.path
+        pfx_password = pfx_material.password
+
+    try:
+        if engine == "dotnet":
+            result = call_dotnet(
+                operation=operation,
+                token=token,
+                endpoint=endpoint,
+                out_dir=DEBUG_DIR,
+                endpoint_mode=endpoint_mode,
+                cert_pfx_path=pfx_path,
+                cert_pfx_password=pfx_password,
+            )
+        elif engine == "java":
+            result = run_java_sdk_call(
+                operation=operation,
+                token=token,
+                endpoint=endpoint,
+                out_dir=DEBUG_DIR,
+                endpoint_mode=endpoint_mode,
+                cert_pfx_path=pfx_path,
+                cert_pfx_password=pfx_password,
+            )
+        else:
+            raise ValueError(f"Unsupported engine for single call: {engine}")
+    finally:
+        if pfx_material is not None:
+            pfx_material.cleanup()
 
     request_path = result.get("request_saved_path")
     response_path = result.get("response_saved_path")
@@ -293,7 +307,7 @@ def run_wssec_single_call(
     request_xml = _load_xml(request_path)
     response_xml = _load_xml(response_path)
 
-    return {
+    response = {
         "ok": result.get("ok", False),
         "engine": result.get("engine", engine),
         "operation": operation,
@@ -309,4 +323,10 @@ def run_wssec_single_call(
         "took_ms": result.get("took_ms"),
         "stderr": result.get("stderr", ""),
         "fault_reason": result.get("fault_reason"),
+        "bridge_stdout": result.get("bridge_stdout"),
+        "soap_request_path": result.get("soap_request_path"),
+        "soap_response_path": result.get("soap_response_path"),
+        "soap_request_saved_path": result.get("soap_request_path"),
+        "soap_response_saved_path": result.get("soap_response_path"),
     }
+    return response

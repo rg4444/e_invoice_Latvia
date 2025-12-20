@@ -5,11 +5,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.Marshaller;
+import javax.xml.ws.BindingProvider;
+import javax.xml.ws.handler.Handler;
 
 import lv.gov.vraa.div.uui._2011._11.UnifiedServiceInterface;
 import lv.gov.vraa.xmlschemas.div.uui._2011._11.GetInitialAddresseeRecordListInput;
@@ -31,6 +35,7 @@ public class VdaaDivBridge {
         String outDir = opts.get("out-dir");
         String pfxPath = opts.get("pfx");
         String pfxPass = opts.getOrDefault("pfx-pass", "");
+        String configPath = opts.getOrDefault("config", "/data/config.json");
 
         if (operation == null || operation.isEmpty()) {
             printError("Missing --operation");
@@ -78,6 +83,13 @@ public class VdaaDivBridge {
             InternalConfiguration internal = InternalConfiguration.fromClientConfig(config);
             IntegrationClientContext context = new IntegrationClientContext(internal);
             UnifiedServiceInterface service = context.call();
+            SoapTraceHandler traceHandler = new SoapTraceHandler(outDir, operation, timestamp);
+            if (service instanceof BindingProvider) {
+                BindingProvider bp = (BindingProvider) service;
+                List<Handler> chain = new ArrayList<>();
+                chain.add(traceHandler);
+                bp.getBinding().setHandlerChain(chain);
+            }
 
             GetInitialAddresseeRecordListOutput output = service.getInitialAddresseeRecordList(input);
             String responseXml = marshalToXml(output);
@@ -100,6 +112,12 @@ public class VdaaDivBridge {
             payload.put("response_saved_path", responsePath.toString());
             payload.put("saved_request_path", requestPath.toString());
             payload.put("saved_response_path", responsePath.toString());
+            if (traceHandler.getRequestPath() != null) {
+                payload.put("soap_request_path", traceHandler.getRequestPath());
+            }
+            if (traceHandler.getResponsePath() != null) {
+                payload.put("soap_response_path", traceHandler.getResponsePath());
+            }
             payload.put("stderr", "");
 
             System.out.println(toJson(payload));
