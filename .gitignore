@@ -4,3 +4,5 @@ __pycache__/
 /data/config.json
 /data/logs/
 /data/kosit/bin/
+*.class
+docs/vdaa-sdk/**/*.class

@@ -15,7 +15,7 @@ from soap_client import send_get_initial_addressee_request
 from soap_engines.cert_utils import resolve_pfx_material
 from soap_engines.dotnet_engine import call_dotnet
 from soap_engines.java_vdaa_sdk import run_java_sdk_call
-from storage import load_config
+from storage import load_config, save_config
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DEBUG_DIR = os.path.join(BASE_DIR, "data", "addresses", "wssec_debug")
@@ -268,11 +268,18 @@ def run_wssec_single_call(
         endpoint = (cfg.get("endpoint") or "").strip()
 
     engine = engine.strip().lower()
+    requested_pfx_path = pfx_path or ""
+    requested_pfx_password = pfx_password or ""
     pfx_material = None
     if use_app_config_certs:
         pfx_material = resolve_pfx_material(cfg)
         pfx_path = pfx_material.path
         pfx_password = pfx_material.password
+
+    if engine == "java":
+        cfg["wssec_java_pfx_path"] = requested_pfx_path
+        cfg["wssec_java_pfx_password"] = requested_pfx_password
+        save_config(cfg)
 
     try:
         if engine == "dotnet":

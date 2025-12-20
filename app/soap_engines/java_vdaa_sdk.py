@@ -16,11 +16,23 @@ JAVA_DIR = "/bridge/java/VdaaDivBridge"
 JAVA_LIB = "/bridge/java/VdaaDivBridge/lib/*"
 CLASSPATH = f"{JAVA_DIR}:{JAVA_LIB}"
 JAVA_ARGS = [
+    "-Dcom.sun.xml.bind.v2.bytecode.ClassTailor.noOptimize=true",
     "--add-opens",
     "java.base/java.lang=ALL-UNNAMED",
     "--add-opens",
+    "java.base/java.lang.reflect=ALL-UNNAMED",
+    "--add-opens",
     "java.base/java.util=ALL-UNNAMED",
-    "-Dcom.sun.xml.bind.v2.bytecode.ClassTailor.noOptimize=true",
+    "--add-opens",
+    "java.base/java.io=ALL-UNNAMED",
+    "--add-exports",
+    "java.xml/com.sun.org.apache.xerces.internal.dom=ALL-UNNAMED",
+    "--add-exports",
+    "java.xml/com.sun.org.apache.xerces.internal.util=ALL-UNNAMED",
+    "--add-exports",
+    "java.xml.crypto/com.sun.org.apache.xml.internal.security=ALL-UNNAMED",
+    "--add-exports",
+    "java.xml.crypto/com.sun.org.apache.xml.internal.security.utils=ALL-UNNAMED",
 ]
 
 
@@ -133,6 +145,21 @@ def run_java_sdk_call(
             cert_pfx_password = pfx_material.password
     if not cert_pfx_password:
         cert_pfx_password = (cfg.get("p12_password") or "").strip() or None
+    if not cert_pfx_path or not cert_pfx_password:
+        took_ms = int((time.perf_counter() - started) * 1000)
+        result = _build_base_result(
+            ok=False,
+            operation=operation,
+            endpoint=endpoint,
+            endpoint_mode=endpoint_mode,
+            sent_utc=sent_utc,
+            took_ms=took_ms,
+            stderr="",
+        )
+        result["fault_reason"] = "PFX path and password are required for Java SDK calls"
+        if pfx_material is not None:
+            pfx_material.cleanup()
+        return result
     if cert_pfx_path and not os.path.exists(cert_pfx_path):
         took_ms = int((time.perf_counter() - started) * 1000)
         result = _build_base_result(
@@ -161,17 +188,13 @@ def run_java_sdk_call(
         endpoint,
         "--out-dir",
         out_dir,
-        "--timeout-seconds",
-        str(timeout_s),
-        "--config",
-        config_path,
+        "--pfx",
+        cert_pfx_path,
+        "--pfx-pass",
+        cert_pfx_password,
+        "--token",
+        token or "",
     ]
-    if token:
-        cmd.extend(["--token", token])
-    if cert_pfx_path:
-        cmd.extend(["--pfx", cert_pfx_path])
-    if cert_pfx_password:
-        cmd.extend(["--pfx-pass", cert_pfx_password])
 
     try:
         proc = subprocess.run(
