@@ -1,11 +1,16 @@
+import java.io.FileInputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyStore;
+import java.security.MessageDigest;
+import java.security.cert.X509Certificate;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,9 +89,11 @@ public class VdaaDivBridge {
             ClientConfiguration config = new ClientConfiguration();
             config.setServiceAddress(endpoint);
             config.setTimeout(timeoutSeconds);
+            String certThumbprint = null;
             if (pfxPath != null && !pfxPath.isEmpty()) {
-                char[] pass = pfxPass == null ? new char[0] : pfxPass.toCharArray();
-                config.getCertificates().add("", StoreLocation.PKCS12, pfxPath, pass);
+                char[] pass = (pfxPass == null) ? new char[0] : pfxPass.toCharArray();
+                certThumbprint = sha1ThumbprintFromPfx(pfxPath, pass);
+                config.getCertificates().add(certThumbprint, StoreLocation.PKCS12, pfxPath, pass);
             }
 
             InternalConfiguration internal = InternalConfiguration.fromClientConfig(config);
@@ -119,6 +126,9 @@ public class VdaaDivBridge {
             }
             if (traceHandler.getResponsePath() != null) {
                 payload.put("soap_response_path", traceHandler.getResponsePath());
+            }
+            if (certThumbprint != null) {
+                payload.put("cert_thumbprint_sha1", certThumbprint);
             }
             payload.put("stderr", "");
 
@@ -221,6 +231,44 @@ public class VdaaDivBridge {
                         sb.append(c);
                     }
             }
+        }
+        return sb.toString();
+    }
+
+    private static String sha1ThumbprintFromPfx(String pfxPath, char[] password) throws Exception {
+        KeyStore ks = KeyStore.getInstance("PKCS12");
+        try (FileInputStream fis = new FileInputStream(pfxPath)) {
+            ks.load(fis, password);
+        }
+
+        Enumeration<String> aliases = ks.aliases();
+        String chosen = null;
+        while (aliases.hasMoreElements()) {
+            String alias = aliases.nextElement();
+            if (ks.isKeyEntry(alias)) {
+                chosen = alias;
+                break;
+            }
+            if (chosen == null) {
+                chosen = alias;
+            }
+        }
+        if (chosen == null) {
+            throw new Exception("No aliases found in PFX");
+        }
+
+        X509Certificate cert = (X509Certificate) ks.getCertificate(chosen);
+        if (cert == null) {
+            throw new Exception("No certificate found in PFX alias: " + chosen);
+        }
+
+        byte[] enc = cert.getEncoded();
+        MessageDigest md = MessageDigest.getInstance("SHA-1");
+        byte[] digest = md.digest(enc);
+
+        StringBuilder sb = new StringBuilder();
+        for (byte b : digest) {
+            sb.append(String.format("%02X", b));
         }
         return sb.toString();
     }
