@@ -5,7 +5,11 @@ from typing import Dict, Any, List
 
 from lxml import etree
 
-from address_service import get_unified_config, build_signed_get_initial_addressee_request
+from address_service import (
+    _assert_thumbprint_keyinfo,
+    get_unified_config,
+    build_signed_get_initial_addressee_request,
+)
 from soap_client import send_get_initial_addressee_request
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -38,11 +42,19 @@ SCENARIOS = [
         "security_order": ("timestamp", "bst", "signature"),
     },
     {
+        "name": "sha256_body_ts_action_to",
+        "label": "SHA256, sign Body + Timestamp + Action + To",
+        "sign_alg": "rsa-sha256",
+        "digest_alg": "sha256",
+        "signed_parts": ("body", "timestamp", "action", "to"),
+        "security_order": ("timestamp", "bst", "signature"),
+    },
+    {
         "name": "policy_compliant",
         "label": "Policy-compliant (SDK WSDL)",
         "sign_alg": "rsa-sha256",
         "digest_alg": "sha256",
-        "signed_parts": ("body", "timestamp", "to"),
+        "signed_parts": ("body", "timestamp", "action", "to"),
         "security_order": ("timestamp", "bst", "signature"),
         "policy_mode": True,
     },
@@ -111,6 +123,24 @@ def run_wssec_scenarios(token: str, scenario_name: str = "all") -> List[Dict[str
             ),
         )
 
+        ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        base = f"GetInitialAddresseeRecordList_{sc['name']}_{ts}"
+        req_name = f"{base}_request.xml"
+        resp_name = f"{base}_response.xml"
+
+        req_path = os.path.join(DEBUG_DIR, req_name)
+        resp_path = os.path.join(DEBUG_DIR, resp_name)
+
+        with open(req_path, "w", encoding="utf-8") as fh:
+            fh.write(envelope_xml)
+
+        try:
+            _assert_thumbprint_keyinfo(envelope_xml)
+        except Exception as exc:
+            with open(resp_path, "w", encoding="utf-8") as fh:
+                fh.write(f"WS-Security guard failed: {exc}\n")
+            raise
+
         http = send_get_initial_addressee_request(
             endpoint=endpoint,
             envelope_xml=envelope_xml,
@@ -123,16 +153,6 @@ def run_wssec_scenarios(token: str, scenario_name: str = "all") -> List[Dict[str
         body = http.get("body") or ""
         fault_reason = _extract_fault_reason(body)
 
-        ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
-        base = f"GetInitialAddresseeRecordList_{sc['name']}_{ts}"
-        req_name = f"{base}_request.xml"
-        resp_name = f"{base}_response.xml"
-
-        req_path = os.path.join(DEBUG_DIR, req_name)
-        resp_path = os.path.join(DEBUG_DIR, resp_name)
-
-        with open(req_path, "w", encoding="utf-8") as fh:
-            fh.write(envelope_xml)
         with open(resp_path, "w", encoding="utf-8") as fh:
             fh.write(body)
 
