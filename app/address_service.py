@@ -644,13 +644,16 @@ def _compute_thumbprint_b64(
     cert: x509.Certificate | None,
     payload: str | None,
 ) -> str | None:
+    thumbprint = None
+
     if cert is not None:
         try:
-            thumbprint = cert.fingerprint(hashes.SHA1())
+            der_bytes = cert.public_bytes(serialization.Encoding.DER)
+            hasher = hashes.Hash(hashes.SHA1())
+            hasher.update(der_bytes)
+            thumbprint = hasher.finalize()
         except Exception:
             thumbprint = None
-    else:
-        thumbprint = None
 
     if thumbprint is None and payload:
         try:
@@ -665,6 +668,27 @@ def _compute_thumbprint_b64(
         return None
 
     return base64.b64encode(thumbprint).decode("ascii")
+
+
+def _assert_thumbprint_keyinfo(xml_text: str) -> None:
+    if not __debug__:
+        return
+    if not xml_text:
+        return
+    if "<wsse:Reference URI=\"#".encode("utf-8") in xml_text.encode("utf-8"):
+        try:
+            root = etree.fromstring(xml_text.encode("utf-8"))
+        except Exception:
+            raise RuntimeError(
+                "KeyInfo uses BST URI reference — policy requires ThumbprintSHA1 KeyIdentifier."
+            )
+        key_infos = root.findall(f".//{{{DS_NAMESPACE}}}KeyInfo")
+        wsse_ns = wsse_utils.ns.WSSE
+        for key_info in key_infos:
+            if key_info.find(f".//{{{wsse_ns}}}Reference") is not None:
+                raise RuntimeError(
+                    "KeyInfo uses BST URI reference — policy requires ThumbprintSHA1 KeyIdentifier."
+                )
 
 
 class UnifiedServiceError(Exception):
@@ -1070,6 +1094,7 @@ def call_unified_operation(operation: str, **params: Any) -> AddressCallResult:
     request_xml = ""
     if history.last_sent and history.last_sent.get("envelope") is not None:
         request_xml = _pretty_xml(history.last_sent["envelope"])
+        _assert_thumbprint_keyinfo(request_xml)
 
     response_xml = ""
     if history.last_received and history.last_received.get("envelope") is not None:
@@ -1235,8 +1260,10 @@ def build_signed_get_initial_addressee_request(
                 security_el.append(node)
 
     # Return full XML string with declaration
-    return etree.tostring(
+    xml_text = etree.tostring(
         envelope,
         encoding="utf-8",
         xml_declaration=True,
     ).decode("utf-8")
+    _assert_thumbprint_keyinfo(xml_text)
+    return xml_text
