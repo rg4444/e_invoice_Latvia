@@ -8,10 +8,20 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from soap_engines.cert_utils import resolve_pfx_material
+from storage import load_config
+
 JAVA_CLASS = "VdaaDivBridge"
 JAVA_DIR = "/bridge/java/VdaaDivBridge"
 JAVA_LIB = "/bridge/java/VdaaDivBridge/lib/*"
 CLASSPATH = f"{JAVA_DIR}:{JAVA_LIB}"
+JAVA_ARGS = [
+    "--add-opens",
+    "java.base/java.lang=ALL-UNNAMED",
+    "--add-opens",
+    "java.base/java.util=ALL-UNNAMED",
+    "-Dcom.sun.xml.bind.v2.bytecode.ClassTailor.noOptimize=true",
+]
 
 
 def _extract_json_payload(stdout: str) -> dict[str, Any] | None:
@@ -83,6 +93,8 @@ def run_java_sdk_call(
 ) -> dict[str, Any]:
     sent_utc = _utc_now_iso()
     started = time.perf_counter()
+    cfg = load_config()
+    pfx_material = None
 
     if not shutil.which("java"):
         took_ms = int((time.perf_counter() - started) * 1000)
@@ -114,8 +126,32 @@ def run_java_sdk_call(
 
     os.makedirs(out_dir, exist_ok=True)
 
+    if not cert_pfx_path:
+        pfx_material = resolve_pfx_material(cfg)
+        cert_pfx_path = pfx_material.path
+        if not cert_pfx_password:
+            cert_pfx_password = pfx_material.password
+    if not cert_pfx_password:
+        cert_pfx_password = (cfg.get("p12_password") or "").strip() or None
+    if cert_pfx_path and not os.path.exists(cert_pfx_path):
+        took_ms = int((time.perf_counter() - started) * 1000)
+        result = _build_base_result(
+            ok=False,
+            operation=operation,
+            endpoint=endpoint,
+            endpoint_mode=endpoint_mode,
+            sent_utc=sent_utc,
+            took_ms=took_ms,
+            stderr="",
+        )
+        result["fault_reason"] = f"PFX file not found: {cert_pfx_path}"
+        if pfx_material is not None:
+            pfx_material.cleanup()
+        return result
+
     cmd = [
         "java",
+        *JAVA_ARGS,
         "-cp",
         CLASSPATH,
         JAVA_CLASS,
@@ -125,6 +161,8 @@ def run_java_sdk_call(
         endpoint,
         "--out-dir",
         out_dir,
+        "--timeout-seconds",
+        str(timeout_s),
         "--config",
         config_path,
     ]
@@ -169,6 +207,9 @@ def run_java_sdk_call(
         )
         result["fault_reason"] = "Failed to start Java bridge"
         return result
+    finally:
+        if pfx_material is not None:
+            pfx_material.cleanup()
 
     took_ms = int((time.perf_counter() - started) * 1000)
     stderr = (proc.stderr or "").strip()

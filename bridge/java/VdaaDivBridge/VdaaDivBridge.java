@@ -8,15 +8,10 @@ import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-
-import javax.xml.ws.BindingProvider;
-import javax.xml.ws.handler.Handler;
 
 import lv.gov.vraa.div.uui._2011._11.UnifiedServiceInterface;
 import lv.gov.vraa.xmlschemas.div.uui._2011._11.GetInitialAddresseeRecordListInput;
@@ -99,13 +94,6 @@ public class VdaaDivBridge {
             InternalConfiguration internal = InternalConfiguration.fromClientConfig(config);
             IntegrationClientContext context = new IntegrationClientContext(internal);
             UnifiedServiceInterface service = context.call();
-            SoapTraceHandler traceHandler = new SoapTraceHandler(outDir, operation, timestamp);
-            if (service instanceof BindingProvider) {
-                BindingProvider bp = (BindingProvider) service;
-                List<Handler> chain = new ArrayList<>();
-                chain.add(traceHandler);
-                bp.getBinding().setHandlerChain(chain);
-            }
 
             service.getInitialAddresseeRecordList(input);
             String responseSummary = "operation: " + operation + System.lineSeparator()
@@ -121,12 +109,6 @@ public class VdaaDivBridge {
             payload.put("response_saved_path", responsePath.toString());
             payload.put("saved_request_path", requestPath.toString());
             payload.put("saved_response_path", responsePath.toString());
-            if (traceHandler.getRequestPath() != null) {
-                payload.put("soap_request_path", traceHandler.getRequestPath());
-            }
-            if (traceHandler.getResponsePath() != null) {
-                payload.put("soap_response_path", traceHandler.getResponsePath());
-            }
             if (certThumbprint != null) {
                 payload.put("cert_thumbprint_sha1", certThumbprint);
             }
