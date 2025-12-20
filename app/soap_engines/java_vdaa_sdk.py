@@ -14,6 +14,27 @@ JAVA_LIB = "/bridge/java/VdaaDivBridge/lib/*"
 CLASSPATH = f"{JAVA_DIR}:{JAVA_LIB}"
 
 
+def _extract_json_payload(stdout: str) -> dict[str, Any] | None:
+    if not stdout:
+        return None
+    start = stdout.rfind('{"ok"')
+    if start == -1:
+        start = stdout.rfind("{")
+    if start == -1:
+        return None
+    end = stdout.rfind("}")
+    if end == -1 or end < start:
+        return None
+    candidate = stdout[start : end + 1]
+    try:
+        payload = json.loads(candidate)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(payload, dict):
+        return payload
+    return None
+
+
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -165,21 +186,19 @@ def run_java_sdk_call(
     stdout = (proc.stdout or "").strip()
     base["bridge_stdout"] = stdout
     if stdout:
-        try:
-            payload = json.loads(stdout)
-        except json.JSONDecodeError:
+        payload = _extract_json_payload(stdout)
+        if payload is None:
             base["fault_reason"] = f"Bridge returned non-JSON output: {stdout}"
             base["raw_output"] = stdout
         else:
-            if isinstance(payload, dict):
-                base.update(payload)
-                base["engine"] = "java"
-                base["operation"] = operation
-                base["endpoint"] = endpoint
-                base["endpoint_mode"] = endpoint_mode
-                base["sent_utc"] = sent_utc
-                base["took_ms"] = took_ms
-                base["stderr"] = stderr
+            base.update(payload)
+            base["engine"] = "java"
+            base["operation"] = operation
+            base["endpoint"] = endpoint
+            base["endpoint_mode"] = endpoint_mode
+            base["sent_utc"] = sent_utc
+            base["took_ms"] = took_ms
+            base["stderr"] = stderr
     if proc.returncode != 0:
         base["ok"] = False
         base["fault_reason"] = f"Java process exited with code {proc.returncode}"
