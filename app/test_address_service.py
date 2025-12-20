@@ -37,11 +37,12 @@ def _make_security_tree():
     return security
 
 
-def test_binary_security_token_reference_replaced_with_wsse_reference():
+def test_binary_security_token_reference_replaced_with_thumbprint():
     security = _make_security_tree()
 
     signer = TimestampedSignature.__new__(TimestampedSignature)
     signer._cert_b64 = "CERTDATA=="
+    signer._cert_thumbprint_b64 = "THUMBPRINT=="
 
     signer._ensure_binary_security_token(security)
 
@@ -57,13 +58,17 @@ def test_binary_security_token_reference_replaced_with_wsse_reference():
     sec_token_ref = children[0]
     assert sec_token_ref.tag == f"{{{WSSE}}}SecurityTokenReference"
 
-    reference = sec_token_ref.find(f"{{{WSSE}}}Reference")
-    assert reference is not None
-    assert reference.get("URI") == f"#token-123"
+    key_identifier = sec_token_ref.find(f"{{{WSSE}}}KeyIdentifier")
+    assert key_identifier is not None
     assert (
-        reference.get("ValueType")
-        == "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3"
+        key_identifier.get("EncodingType")
+        == "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary"
     )
+    assert (
+        key_identifier.get("ValueType")
+        == "http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1"
+    )
+    assert key_identifier.text == "THUMBPRINT=="
 
 
 def test_duplicate_key_info_nodes_removed_before_replacement():
@@ -79,6 +84,7 @@ def test_duplicate_key_info_nodes_removed_before_replacement():
 
     signer = TimestampedSignature.__new__(TimestampedSignature)
     signer._cert_b64 = "CERTDATA=="
+    signer._cert_thumbprint_b64 = "THUMBPRINT=="
 
     signer._ensure_binary_security_token(security)
 
@@ -92,6 +98,7 @@ def test_duplicate_key_info_nodes_removed_before_replacement():
 def test_binary_security_token_gracefully_skips_missing_security():
     signer = TimestampedSignature.__new__(TimestampedSignature)
     signer._cert_b64 = "CERTDATA=="
+    signer._cert_thumbprint_b64 = "THUMBPRINT=="
 
     # Should be a no-op instead of raising AttributeError when security is None
     signer._ensure_binary_security_token(None)
@@ -438,8 +445,8 @@ def test_timestamped_signature_prefers_sha256(monkeypatch):
 
     monkeypatch.setattr(
         TimestampedSignature,
-        "_extract_certificate_b64",
-        staticmethod(lambda certfile, key_file=None: "CERTDATA"),
+        "_extract_certificate_material",
+        staticmethod(lambda certfile, key_file=None: ("CERTDATA", "THUMBPRINT")),
     )
 
     TimestampedSignature(

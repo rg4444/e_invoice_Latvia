@@ -37,6 +37,15 @@ SCENARIOS = [
         "signed_parts": ("body", "timestamp"),
         "security_order": ("timestamp", "bst", "signature"),
     },
+    {
+        "name": "policy_compliant",
+        "label": "Policy-compliant (SDK WSDL)",
+        "sign_alg": "rsa-sha256",
+        "digest_alg": "sha256",
+        "signed_parts": ("body", "timestamp", "to"),
+        "security_order": ("timestamp", "bst", "signature"),
+        "policy_mode": True,
+    },
 ]
 
 
@@ -131,6 +140,7 @@ def run_wssec_scenarios(token: str, scenario_name: str = "all") -> List[Dict[str
             {
                 "scenario": sc["name"],
                 "label": sc.get("label", sc["name"]),
+                "policy_mode": bool(sc.get("policy_mode")),
                 "http_status": status,
                 "fault_reason": fault_reason,
                 "request_file": req_name,

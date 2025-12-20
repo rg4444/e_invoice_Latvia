@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 import re
 import time
@@ -28,6 +29,7 @@ except ImportError:  # pragma: no cover - xmlsec is optional during testing
     xmlsec = None  # type: ignore[assignment]
 
 from cryptography import x509
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 
 from storage import load_config
@@ -136,8 +138,8 @@ class TimestampedSignature(LenientSignature):
         *,
         key_password: str | None = None,
         timestamp_ttl_seconds: int = 300,
-        sign_alg: str = "rsa-sha1",
-        digest_alg: str = "sha1",
+        sign_alg: str = "rsa-sha256",
+        digest_alg: str = "sha256",
         signed_parts: tuple[str, ...] = (
             "body",
             "timestamp",
@@ -163,7 +165,9 @@ class TimestampedSignature(LenientSignature):
         )
         self.timestamp_ttl_seconds = max(int(timestamp_ttl_seconds), 1)
         self._last_timestamp_window: dict[str, str] | None = None
-        self._cert_b64 = self._extract_certificate_b64(certfile, key_file)
+        self._cert_b64, self._cert_thumbprint_b64 = self._extract_certificate_material(
+            certfile, key_file
+        )
         self._signed_parts = tuple(part.lower() for part in (signed_parts or ()))
 
     @staticmethod
@@ -210,6 +214,8 @@ class TimestampedSignature(LenientSignature):
             envelope = envelope_root
 
         security = _get_or_create_security_header(envelope)
+        soap_env = zeep_signature.detect_soap_env(envelope)
+        security.set(etree.QName(soap_env, "mustUnderstand"), "1")
         timestamp_tag = f"{{{wsse_utils.ns.WSU}}}Timestamp"
 
         for existing in list(security):
@@ -228,6 +234,7 @@ class TimestampedSignature(LenientSignature):
         # when the header could not be located.
         security = _get_or_create_security_header(envelope)
         self._ensure_binary_security_token(security)
+        self._enforce_security_layout(security)
         return envelope, headers
 
     def _ensure_wsu_prefix(
@@ -359,11 +366,14 @@ class TimestampedSignature(LenientSignature):
         return info
 
     @staticmethod
-    def _extract_certificate_b64(certfile: str, key_file: str | None = None) -> str | None:
+    def _extract_certificate_material(
+        certfile: str,
+        key_file: str | None = None,
+    ) -> tuple[str | None, str | None]:
         try:
             raw_bytes = Path(certfile).read_bytes()
         except OSError:
-            return None
+            return None, None
 
         pem_text = raw_bytes.decode("utf-8", errors="ignore")
         matches = re.findall(
@@ -372,7 +382,7 @@ class TimestampedSignature(LenientSignature):
             re.DOTALL,
         )
         if not matches:
-            return None
+            return None, None
 
         certificates: list[tuple[x509.Certificate | None, str]] = []
         for body in matches:
@@ -391,7 +401,7 @@ class TimestampedSignature(LenientSignature):
             certificates.append((cert, payload))
 
         if not certificates:
-            return None
+            return None, None
 
         key_public_numbers = None
         if key_file:
@@ -408,17 +418,17 @@ class TimestampedSignature(LenientSignature):
                     continue
                 try:
                     if cert.public_key().public_numbers() == key_public_numbers:
-                        return payload
+                        return payload, _compute_thumbprint_b64(cert, payload)
                 except Exception:
                     continue
 
-        fallback_payload: str | None = None
-        leaf_candidates: list[str] = []
+        fallback_entry: tuple[x509.Certificate | None, str] | None = None
+        leaf_candidates: list[tuple[x509.Certificate | None, str]] = []
 
         for cert, payload in certificates:
             if cert is None:
-                if fallback_payload is None:
-                    fallback_payload = payload
+                if fallback_entry is None:
+                    fallback_entry = (cert, payload)
                 continue
 
             try:
@@ -430,23 +440,41 @@ class TimestampedSignature(LenientSignature):
                 # Treat self-signed certificates without explicit constraints as CA
                 is_ca = cert.issuer == cert.subject
             except Exception:
-                if fallback_payload is None:
-                    fallback_payload = payload
+                if fallback_entry is None:
+                    fallback_entry = (cert, payload)
                 continue
 
             if not is_ca:
-                leaf_candidates.append(payload)
-            elif fallback_payload is None:
-                fallback_payload = payload
+                leaf_candidates.append((cert, payload))
+            elif fallback_entry is None:
+                fallback_entry = (cert, payload)
 
         if leaf_candidates:
-            return leaf_candidates[0]
+            cert, payload = leaf_candidates[0]
+            return payload, _compute_thumbprint_b64(cert, payload)
 
-        if fallback_payload is not None:
-            return fallback_payload
+        if fallback_entry is not None:
+            cert, payload = fallback_entry
+            return payload, _compute_thumbprint_b64(cert, payload)
 
         # Fallback to the first certificate if nothing else matched.
-        return certificates[0][1]
+        cert, payload = certificates[0]
+        return payload, _compute_thumbprint_b64(cert, payload)
+
+    @staticmethod
+    def _extract_certificate_b64(certfile: str, key_file: str | None = None) -> str | None:
+        payload, _ = TimestampedSignature._extract_certificate_material(certfile, key_file)
+        return payload
+
+    @staticmethod
+    def _extract_certificate_thumbprint_b64(
+        certfile: str,
+        key_file: str | None = None,
+    ) -> str | None:
+        _, thumbprint = TimestampedSignature._extract_certificate_material(
+            certfile, key_file
+        )
+        return thumbprint
 
     def _ensure_binary_security_token(
         self, security: etree._Element | None
@@ -513,21 +541,29 @@ class TimestampedSignature(LenientSignature):
             if q.namespace == ds_ns and q.localname == "KeyInfo":
                 signature.remove(child)
 
-        # Add ONE clean ds:KeyInfo with wsse:SecurityTokenReference to BST
+        if not self._cert_thumbprint_b64:
+            return
+
+        # Add ONE clean ds:KeyInfo with wsse:SecurityTokenReference using ThumbprintSHA1
         key_info = etree.SubElement(signature, etree.QName(ds_ns, "KeyInfo"))
         sec_token_ref = etree.SubElement(
             key_info, etree.QName(wsse_ns, "SecurityTokenReference")
         )
-        reference = etree.SubElement(
-            sec_token_ref, etree.QName(wsse_ns, "Reference")
+        key_identifier = etree.SubElement(
+            sec_token_ref, etree.QName(wsse_ns, "KeyIdentifier")
         )
-        reference.set("URI", f"#{bst_id}")
-        reference.set(
+        key_identifier.set(
+            "EncodingType",
+            "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary",
+        )
+        key_identifier.set(
             "ValueType",
-            "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3",
+            "http://docs.oasis-open.org/wss/oasis-wss-soap-message-security-1.1#ThumbprintSHA1",
         )
+        key_identifier.text = self._cert_thumbprint_b64
 
         self._remove_redundant_wsu_namespace(binary_token)
+        self._enforce_security_layout(security)
 
     def _prepare_node_for_wsu(self, node: etree._Element | None) -> etree._Element | None:
         if node is None:
@@ -581,6 +617,54 @@ class TimestampedSignature(LenientSignature):
 
             if node.attrib[attr_name] == ns_uri:
                 del node.attrib[attr_name]
+
+    @staticmethod
+    def _enforce_security_layout(security: etree._Element | None) -> None:
+        if security is None:
+            return
+
+        wsse_ns = wsse_utils.ns.WSSE
+        wsu_ns = wsse_utils.ns.WSU
+
+        timestamp_el = security.find(f"{{{wsu_ns}}}Timestamp")
+        bst_el = security.find(f"{{{wsse_ns}}}BinarySecurityToken")
+        signature_el = security.find(f"{{{DS_NAMESPACE}}}Signature")
+
+        ordered = [timestamp_el, bst_el, signature_el]
+        for node in ordered:
+            if node is not None and node.getparent() is security:
+                security.remove(node)
+
+        for node in ordered:
+            if node is not None:
+                security.append(node)
+
+
+def _compute_thumbprint_b64(
+    cert: x509.Certificate | None,
+    payload: str | None,
+) -> str | None:
+    if cert is not None:
+        try:
+            thumbprint = cert.fingerprint(hashes.SHA1())
+        except Exception:
+            thumbprint = None
+    else:
+        thumbprint = None
+
+    if thumbprint is None and payload:
+        try:
+            der_bytes = base64.b64decode(payload)
+        except Exception:
+            return None
+        thumbprint = hashes.Hash(hashes.SHA1())
+        thumbprint.update(der_bytes)
+        thumbprint = thumbprint.finalize()
+
+    if not thumbprint:
+        return None
+
+    return base64.b64encode(thumbprint).decode("ascii")
 
 
 class UnifiedServiceError(Exception):
@@ -1034,8 +1118,8 @@ def build_signed_get_initial_addressee_request(
     certfile: str,
     key_file: str | None = None,
     key_password: str | None = None,
-    sign_alg: str = "rsa-sha1",
-    digest_alg: str = "sha1",
+    sign_alg: str = "rsa-sha256",
+    digest_alg: str = "sha256",
     signed_parts: tuple[str, ...] = (
         "body",
         "timestamp",
@@ -1044,7 +1128,7 @@ def build_signed_get_initial_addressee_request(
         "message",
         "replyto",
     ),
-    security_order: tuple[str, ...] = ("bst", "signature", "timestamp"),
+    security_order: tuple[str, ...] = ("timestamp", "bst", "signature"),
 ) -> str:
     """
     Build a SOAP 1.2 + WS-Addressing + WS-Security (X.509) request envelope

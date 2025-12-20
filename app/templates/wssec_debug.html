@@ -37,6 +37,7 @@
             <option value="sha1_body_timestamp">SHA1 – sign Body + Timestamp</option>
             <option value="sha1_body_ts_action_to">SHA1 – sign Body + Timestamp + Action + To</option>
             <option value="sha256_body_timestamp">SHA256 – sign Body + Timestamp</option>
+            <option value="policy_compliant">Policy-compliant (SDK WSDL)</option>
           </select>
           <div class="form-text">
             Start with "Run all scenarios" to compare behaviour.
@@ -100,6 +101,9 @@
           lines.push("  HTTP status: " + r.http_status);
           if (r.fault_reason) {
             lines.push("  Fault reason: " + r.fault_reason);
+          }
+          if (r.policy_mode) {
+            lines.push("  WSDL policy mode: ON");
           }
           if (r.request_file) {
             lines.push("  Request file: wssec_debug/" + r.request_file);
