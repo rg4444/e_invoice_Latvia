@@ -13,7 +13,8 @@ from address_service import (
 )
 from soap_client import send_get_initial_addressee_request
 from soap_engines.dotnet_engine import call_dotnet
-from soap_engines.java_bridge import call_java_bridge
+from soap_engines.java_vdaa_sdk import run_java_sdk_call
+from storage import load_config
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DEBUG_DIR = os.path.join(BASE_DIR, "data", "addresses", "wssec_debug")
@@ -256,11 +257,11 @@ def run_wssec_single_call(
     endpoint_mode: str = "debug",
 ) -> Dict[str, Any]:
     os.makedirs(DEBUG_DIR, exist_ok=True)
-    config = get_unified_config()
+    cfg = load_config()
     if endpoint_mode == "debug":
-        endpoint = config.debug_endpoint or config.endpoint
+        endpoint = (cfg.get("debug_endpoint") or cfg.get("endpoint") or "").strip()
     else:
-        endpoint = config.endpoint
+        endpoint = (cfg.get("endpoint") or "").strip()
 
     engine = engine.strip().lower()
     if engine == "dotnet":
@@ -272,12 +273,16 @@ def run_wssec_single_call(
             endpoint_mode=endpoint_mode,
         )
     elif engine == "java":
-        result = call_java_bridge(
+        cert_pfx_path = (cfg.get("client_p12") or "").strip() or None
+        cert_pfx_password = (cfg.get("p12_password") or "").strip() or None
+        result = run_java_sdk_call(
             operation=operation,
             token=token,
             endpoint=endpoint,
             out_dir=DEBUG_DIR,
             endpoint_mode=endpoint_mode,
+            cert_pfx_path=cert_pfx_path,
+            cert_pfx_password=cert_pfx_password,
         )
     else:
         raise ValueError(f"Unsupported engine for single call: {engine}")

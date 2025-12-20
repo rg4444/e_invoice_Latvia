@@ -185,7 +185,13 @@
 
       let lines = [];
       if (!data.ok) {
-        lines.push("Error: " + (data.error || "Unknown error"));
+        lines.push("Error: " + (data.error || data.fault_reason || "Unknown error"));
+        if (data.fault_reason && data.error && data.fault_reason !== data.error) {
+          lines.push("Fault reason: " + data.fault_reason);
+        }
+        if (data.stderr) {
+          lines.push("stderr: " + data.stderr);
+        }
       } else if (engine === 'python') {
         for (const r of data.results) {
           lines.push("Scenario: " + r.scenario + " (" + (r.label || "") + ")");
