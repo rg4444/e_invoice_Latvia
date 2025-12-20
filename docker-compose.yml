@@ -7,6 +7,7 @@ services:
     volumes:
       - ./app:/app
       - ./data:/data
+      - ./bridge:/bridge
     environment:
       - APP_SECRET=${APP_SECRET}
       - DEFAULT_SCHEMA=${DEFAULT_SCHEMA}

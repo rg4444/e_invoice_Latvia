@@ -182,6 +182,30 @@ document.getElementById('fix').addEventListener('click', async ()=>{
     <label for="p12_password" class="form-label">P12 password</label>
     <input id="p12_password" type="password" name="p12_password" value="{{cfg.p12_password}}" class="form-control">
   </div>
+  <h4>.NET Bridge</h4>
+  <div class="mb-3">
+    <label for="dotnet_bridge_path" class="form-label">.NET bridge path</label>
+    <input id="dotnet_bridge_path" name="dotnet_bridge_path" value="{{cfg.DOTNET_BRIDGE_PATH}}" class="form-control" placeholder="/bridge/dotnet/VdaaDivBridge/VdaaDivBridge.exe">
+    <div class="form-text">Defaults to the mounted bridge path inside the container.</div>
+  </div>
+  <div class="mb-3">
+    <label for="dotnet_cert_pfx_path" class="form-label">.NET client certificate (PFX)</label>
+    <input id="dotnet_cert_pfx_path" name="dotnet_cert_pfx_path" value="{{cfg.DOTNET_CERT_PFX_PATH}}" class="form-control" placeholder="/data/certs/client.pfx">
+  </div>
+  <div class="mb-3">
+    <label for="dotnet_cert_pfx_password" class="form-label">.NET PFX password</label>
+    <input id="dotnet_cert_pfx_password" type="password" name="dotnet_cert_pfx_password" value="{{cfg.DOTNET_CERT_PFX_PASSWORD}}" class="form-control">
+  </div>
+  <h4>Java Bridge</h4>
+  <div class="mb-3">
+    <label for="java_bridge_dir" class="form-label">Java bridge directory</label>
+    <input id="java_bridge_dir" name="java_bridge_dir" value="{{cfg.JAVA_BRIDGE_DIR}}" class="form-control" placeholder="/bridge/java/VdaaDivBridge">
+  </div>
+  <div class="mb-3">
+    <label for="java_bridge_lib_dir" class="form-label">Java bridge lib directory</label>
+    <input id="java_bridge_lib_dir" name="java_bridge_lib_dir" value="{{cfg.JAVA_BRIDGE_LIB_DIR}}" class="form-control" placeholder="/examples/VDAA_docs/Client/JAVA">
+    <div class="form-text">Point this at the SDK jar location so the bridge can run without copying binaries into the repo.</div>
+  </div>
   <div class="mb-3">
     <label for="ca_bundle" class="form-label">CA bundle (optional)</label>
     <input id="ca_bundle" name="ca_bundle" value="{{cfg.ca_bundle}}" class="form-control" placeholder="/data/certs/chain.pem">
