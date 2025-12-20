@@ -33,6 +33,19 @@ public class VdaaDivBridge {
         String pfxPath = opts.get("pfx");
         String pfxPass = opts.getOrDefault("pfx-pass", "");
         String configPath = opts.getOrDefault("config", "/data/config.json");
+        String timeoutStr = opts.getOrDefault("timeout-seconds", "60");
+        int timeoutSeconds = 60;
+        try {
+            timeoutSeconds = Integer.parseInt(timeoutStr);
+        } catch (Exception ignore) {
+            timeoutSeconds = 60;
+        }
+        if (timeoutSeconds < 0) {
+            timeoutSeconds = 0;
+        }
+        if (timeoutSeconds > 3600) {
+            timeoutSeconds = 3600;
+        }
 
         if (operation == null || operation.isEmpty()) {
             printError("Missing --operation");
@@ -70,7 +83,7 @@ public class VdaaDivBridge {
 
             ClientConfiguration config = new ClientConfiguration();
             config.setServiceAddress(endpoint);
-            config.setTimeout(60000);
+            config.setTimeout(timeoutSeconds);
             if (pfxPath != null && !pfxPath.isEmpty()) {
                 char[] pass = pfxPass == null ? new char[0] : pfxPass.toCharArray();
                 config.getCertificates().add("", StoreLocation.PKCS12, pfxPath, pass);
