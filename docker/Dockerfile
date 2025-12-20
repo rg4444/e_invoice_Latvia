@@ -62,6 +62,9 @@ WORKDIR /app
 # Dockerfile is in ./docker, build context is ".", so "../app" is the project app dir
 COPY ../app .
 
+# Java bridge code (includes lib jars)
+COPY ../bridge /bridge
+
 # Data directory (certs, configs, etc.)
 COPY ../data /data
 
