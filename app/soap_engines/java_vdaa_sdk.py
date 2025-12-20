@@ -180,12 +180,8 @@ def run_java_sdk_call(
                 base["sent_utc"] = sent_utc
                 base["took_ms"] = took_ms
                 base["stderr"] = stderr
-    elif proc.returncode != 0:
-        base["fault_reason"] = "Bridge returned no output"
-
     if proc.returncode != 0:
         base["ok"] = False
-        if not base.get("fault_reason"):
-            base["fault_reason"] = "Bridge process failed"
+        base["fault_reason"] = f"Java process exited with code {proc.returncode}"
 
     return base

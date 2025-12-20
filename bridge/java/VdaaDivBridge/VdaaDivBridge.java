@@ -10,14 +10,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.xml.bind.JAXBContext;
-import javax.xml.bind.Marshaller;
 import javax.xml.ws.BindingProvider;
 import javax.xml.ws.handler.Handler;
 
 import lv.gov.vraa.div.uui._2011._11.UnifiedServiceInterface;
 import lv.gov.vraa.xmlschemas.div.uui._2011._11.GetInitialAddresseeRecordListInput;
-import lv.gov.vraa.xmlschemas.div.uui._2011._11.GetInitialAddresseeRecordListOutput;
 import lv.gov.vraa.xmlschemas.div.uui._2011._11.ObjectFactory;
 import vraa.div.client.ClientConfiguration;
 import vraa.div.client.IntegrationClientContext;
@@ -58,8 +55,8 @@ public class VdaaDivBridge {
         try {
             Files.createDirectories(Path.of(outDir));
             String timestamp = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date());
-            String requestFile = operation + "_java_" + timestamp + "_request.xml";
-            String responseFile = operation + "_java_" + timestamp + "_response.xml";
+            String requestFile = operation + "_java_" + timestamp + "_request.txt";
+            String responseFile = operation + "_java_" + timestamp + "_response.txt";
             Path requestPath = Path.of(outDir, requestFile);
             Path responsePath = Path.of(outDir, responseFile);
 
@@ -67,10 +64,9 @@ public class VdaaDivBridge {
             GetInitialAddresseeRecordListInput input = new GetInitialAddresseeRecordListInput();
             input.setToken(factory.createGetInitialAddresseeRecordListInputToken(token));
 
-            String requestXml = marshalToXml(input);
-            if (requestXml != null) {
-                Files.writeString(requestPath, requestXml, StandardCharsets.UTF_8);
-            }
+            String requestSummary = "operation: " + operation + System.lineSeparator()
+                + "token: " + token + System.lineSeparator();
+            Files.writeString(requestPath, requestSummary, StandardCharsets.UTF_8);
 
             ClientConfiguration config = new ClientConfiguration();
             config.setServiceAddress(endpoint);
@@ -91,23 +87,16 @@ public class VdaaDivBridge {
                 bp.getBinding().setHandlerChain(chain);
             }
 
-            GetInitialAddresseeRecordListOutput output = service.getInitialAddresseeRecordList(input);
-            String responseXml = marshalToXml(output);
-            if (responseXml != null) {
-                Files.writeString(responsePath, responseXml, StandardCharsets.UTF_8);
-            }
+            service.getInitialAddresseeRecordList(input);
+            String responseSummary = "operation: " + operation + System.lineSeparator()
+                + "status: success" + System.lineSeparator();
+            Files.writeString(responsePath, responseSummary, StandardCharsets.UTF_8);
 
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("ok", true);
             payload.put("engine", "java");
             payload.put("operation", operation);
             payload.put("endpoint", endpoint);
-            if (requestXml != null) {
-                payload.put("request_xml", requestXml);
-            }
-            if (responseXml != null) {
-                payload.put("response_xml", responseXml);
-            }
             payload.put("request_saved_path", requestPath.toString());
             payload.put("response_saved_path", responsePath.toString());
             payload.put("saved_request_path", requestPath.toString());
@@ -145,18 +134,6 @@ public class VdaaDivBridge {
             opts.put(key, value);
         }
         return opts;
-    }
-
-    private static String marshalToXml(Object obj) throws Exception {
-        if (obj == null) {
-            return null;
-        }
-        JAXBContext ctx = JAXBContext.newInstance(obj.getClass());
-        Marshaller marshaller = ctx.createMarshaller();
-        marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
-        StringWriter writer = new StringWriter();
-        marshaller.marshal(obj, writer);
-        return writer.toString();
     }
 
     private static void printError(String message) {
