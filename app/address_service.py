@@ -995,6 +995,7 @@ def _call_initial_addressee_direct(token: str) -> AddressCallResult:
         certfile=config.client_cert,
         key_file=config.client_key,
     )
+    _assert_thumbprint_keyinfo(envelope_xml)
 
     # Low-level HTTP call (TLS, client cert, Content-Type+action)
     http = send_get_initial_addressee_request(
