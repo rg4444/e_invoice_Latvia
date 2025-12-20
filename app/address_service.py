@@ -1266,4 +1266,5 @@ def build_signed_get_initial_addressee_request(
         encoding="utf-8",
         xml_declaration=True,
     ).decode("utf-8")
+    _assert_thumbprint_keyinfo(xml_text)
     return xml_text
