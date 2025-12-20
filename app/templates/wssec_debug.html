@@ -100,6 +100,28 @@
           </div>
         </div>
 
+        <div class="mb-3" id="wssec_cert_group">
+          <label class="form-label">Certificate source (SDK engines)</label>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="wssec_use_config_certs" checked>
+            <label class="form-check-label" for="wssec_use_config_certs">
+              Use app config certs
+            </label>
+          </div>
+          <div class="form-text">
+            When checked, the SDK call uses the configured client certificate and key, or the configured
+            PKCS#12 if present.
+          </div>
+          <div class="row mt-2 g-2">
+            <div class="col-md-8">
+              <input type="text" class="form-control" id="wssec_pfx_path" placeholder="Custom PFX path (optional)">
+            </div>
+            <div class="col-md-4">
+              <input type="password" class="form-control" id="wssec_pfx_password" placeholder="PFX password (optional)">
+            </div>
+          </div>
+        </div>
+
         <button type="button" id="wssec_run" class="btn btn-primary">
           Run WS-Security tests
         </button>
@@ -134,13 +156,25 @@
   const scenarioGroup = document.getElementById('wssec_scenario_group');
   const scenarioSelect = document.getElementById('wssec_scenario');
   const operationSelect = document.getElementById('wssec_operation');
+  const certGroup = document.getElementById('wssec_cert_group');
+  const useConfigCerts = document.getElementById('wssec_use_config_certs');
+  const pfxPathInput = document.getElementById('wssec_pfx_path');
+  const pfxPasswordInput = document.getElementById('wssec_pfx_password');
 
   function updateEngineUI() {
     const engine = engineSelect.value;
     const isPython = engine === 'python';
     scenarioGroup.hidden = !isPython;
     scenarioSelect.disabled = !isPython;
+    certGroup.hidden = isPython;
     runBtn.textContent = isPython ? 'Run WS-Security tests' : 'Run SDK call';
+    toggleCertInputs();
+  }
+
+  function toggleCertInputs() {
+    const useConfig = useConfigCerts.checked;
+    pfxPathInput.disabled = useConfig;
+    pfxPasswordInput.disabled = useConfig;
   }
 
   async function callWssecDebug() {
@@ -173,7 +207,10 @@
           engine: engine,
           operation: operation,
           token: token,
-          use_debug_endpoint: useDebug
+          use_debug_endpoint: useDebug,
+          use_app_config_certs: useConfigCerts.checked,
+          pfx_path: pfxPathInput.value.trim(),
+          pfx_password: pfxPasswordInput.value
         };
         const resp = await fetch('/api/wssec-debug/run-sdk-call', {
           method: 'POST',
@@ -231,8 +268,17 @@
         if (savedResponse) {
           lines.push("Saved response: " + savedResponse);
         }
+        if (data.soap_request_path) {
+          lines.push("SOAP request: " + data.soap_request_path);
+        }
+        if (data.soap_response_path) {
+          lines.push("SOAP response: " + data.soap_response_path);
+        }
         if (data.fault_reason) {
           lines.push("Fault reason: " + data.fault_reason);
+        }
+        if (data.bridge_stdout) {
+          lines.push("stdout: " + data.bridge_stdout);
         }
         if (data.stderr) {
           lines.push("stderr: " + data.stderr);
@@ -247,6 +293,7 @@
   }
 
   engineSelect.addEventListener('change', updateEngineUI);
+  useConfigCerts.addEventListener('change', toggleCertInputs);
   updateEngineUI();
   runBtn.addEventListener('click', callWssecDebug);
 })();

@@ -58,6 +58,7 @@ def run_java_sdk_call(
     out_dir: str,
     endpoint_mode: str = "normal",
     timeout_s: int = 60,
+    config_path: str = "/data/config.json",
 ) -> dict[str, Any]:
     sent_utc = _utc_now_iso()
     started = time.perf_counter()
@@ -103,6 +104,8 @@ def run_java_sdk_call(
         endpoint,
         "--out-dir",
         out_dir,
+        "--config",
+        config_path,
     ]
     if token:
         cmd.extend(["--token", token])
@@ -160,11 +163,13 @@ def run_java_sdk_call(
     )
 
     stdout = (proc.stdout or "").strip()
+    base["bridge_stdout"] = stdout
     if stdout:
         try:
             payload = json.loads(stdout)
         except json.JSONDecodeError:
-            base["fault_reason"] = "Bridge returned non-JSON output"
+            base["fault_reason"] = f"Bridge returned non-JSON output: {stdout}"
+            base["raw_output"] = stdout
         else:
             if isinstance(payload, dict):
                 base.update(payload)
