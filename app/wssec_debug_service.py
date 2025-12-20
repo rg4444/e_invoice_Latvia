@@ -12,6 +12,8 @@ from address_service import (
     build_signed_get_initial_addressee_request,
 )
 from soap_client import send_get_initial_addressee_request
+from soap_engines.dotnet_engine import call_dotnet
+from soap_engines.java_bridge import call_java_bridge
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DEBUG_DIR = os.path.join(BASE_DIR, "data", "addresses", "wssec_debug")
@@ -121,7 +123,13 @@ def run_wssec_scenarios(
     token: str,
     scenario_name: str = "all",
     endpoint_mode: str = "debug",
+    *,
+    engine: str = "python",
 ) -> List[Dict[str, Any]]:
+    if engine != "python":
+        raise ValueError(
+            "WS-Security scenarios are only available in the Python engine."
+        )
     os.makedirs(DEBUG_DIR, exist_ok=True)
 
     config = get_unified_config()
@@ -226,3 +234,74 @@ def run_wssec_scenarios(
         json.dump(results, fh, indent=2, ensure_ascii=False)
 
     return results
+
+
+def _load_xml(path: Optional[str]) -> Optional[str]:
+    if not path:
+        return None
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
+def run_wssec_single_call(
+    *,
+    engine: str,
+    operation: str,
+    token: str,
+    endpoint_mode: str = "debug",
+) -> Dict[str, Any]:
+    os.makedirs(DEBUG_DIR, exist_ok=True)
+    config = get_unified_config()
+    if endpoint_mode == "debug":
+        endpoint = config.debug_endpoint or config.endpoint
+    else:
+        endpoint = config.endpoint
+
+    engine = engine.strip().lower()
+    if engine == "dotnet":
+        result = call_dotnet(
+            operation=operation,
+            token=token,
+            endpoint=endpoint,
+            out_dir=DEBUG_DIR,
+            endpoint_mode=endpoint_mode,
+        )
+    elif engine == "java":
+        result = call_java_bridge(
+            operation=operation,
+            token=token,
+            endpoint=endpoint,
+            out_dir=DEBUG_DIR,
+            endpoint_mode=endpoint_mode,
+        )
+    else:
+        raise ValueError(f"Unsupported engine for single call: {engine}")
+
+    request_path = result.get("request_saved_path")
+    response_path = result.get("response_saved_path")
+
+    request_xml = _load_xml(request_path)
+    response_xml = _load_xml(response_path)
+
+    return {
+        "ok": result.get("ok", False),
+        "engine": result.get("engine", engine),
+        "operation": operation,
+        "endpoint": result.get("endpoint", endpoint),
+        "endpoint_mode": result.get("endpoint_mode", endpoint_mode),
+        "request_xml": request_xml,
+        "response_xml": response_xml,
+        "saved_request_path": request_path,
+        "saved_response_path": response_path,
+        "request_saved_path": request_path,
+        "response_saved_path": response_path,
+        "http_status": result.get("http_status"),
+        "took_ms": result.get("took_ms"),
+        "stderr": result.get("stderr", ""),
+        "fault_reason": result.get("fault_reason"),
+    }

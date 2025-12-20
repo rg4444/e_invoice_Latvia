@@ -40,7 +40,7 @@ from schematron import run_schematron
 from kosit_runner import run_kosit
 from address_service import call_unified_operation, UnifiedServiceError
 from div_envelope import EnvelopeMetadata, build_div_envelope, parse_recipient_list
-from wssec_debug_service import run_wssec_scenarios
+from wssec_debug_service import run_wssec_scenarios, run_wssec_single_call
 from soap_engines.dispatcher import call_engine
 import pdf_ocr
 
@@ -341,7 +341,8 @@ def _engine_capabilities(cfg: dict[str, Any]) -> dict[str, dict[str, Any]]:
     dotnet_available = bool(dotnet_path and os.path.exists(dotnet_path))
 
     java_path = shutil.which("java")
-    java_bridge_dir = (cfg.get("JAVA_BRIDGE_DIR") or "").strip()
+    default_java_bridge = "/bridge/java/VdaaDivBridge"
+    java_bridge_dir = (cfg.get("JAVA_BRIDGE_DIR") or default_java_bridge).strip()
     java_lib_dir = os.path.join(java_bridge_dir, "lib") if java_bridge_dir else ""
     java_has_libs = False
     if java_lib_dir and os.path.isdir(java_lib_dir):
@@ -1113,25 +1114,26 @@ def wssec_debug_run(
     engine: str = Form("python"),
     endpoint_mode: str = Form("debug"),
 ):
-    if engine != "python":
-        return JSONResponse(
-            content={
-                "ok": False,
-                "error": "WS-Security scenarios are only available in the Python engine.",
-            },
-            status_code=400,
-        )
     try:
         results = run_wssec_scenarios(
             token=token or "",
             scenario_name=scenario,
             endpoint_mode=endpoint_mode or "debug",
+            engine=engine or "python",
         )
         return JSONResponse(
             content={
                 "ok": True,
                 "results": results,
             }
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            content={
+                "ok": False,
+                "error": str(exc),
+            },
+            status_code=400,
         )
     except Exception as exc:
         return JSONResponse(
@@ -1141,6 +1143,46 @@ def wssec_debug_run(
             },
             status_code=500,
         )
+
+
+@app.post("/api/wssec-debug/run-sdk-call")
+async def wssec_debug_run_sdk_call(request: Request):
+    data = await _load_request_data(request)
+    engine = (data.get("engine") or "").strip().lower()
+    operation = (data.get("operation") or "GetInitialAddresseeRecordList").strip()
+    token = (data.get("token") or "").strip()
+    use_debug_endpoint = _truthy(data.get("use_debug_endpoint", True))
+
+    if engine not in {"dotnet", "java"}:
+        return JSONResponse(
+            {"ok": False, "error": "Engine must be java or dotnet."},
+            status_code=400,
+        )
+
+    if not operation:
+        return JSONResponse(
+            {"ok": False, "error": "Operation is required."},
+            status_code=400,
+        )
+
+    endpoint_mode = "debug" if use_debug_endpoint else "normal"
+
+    try:
+        result = run_wssec_single_call(
+            engine=engine,
+            operation=operation,
+            token=token,
+            endpoint_mode=endpoint_mode,
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse(
+            {"ok": False, "error": f"WS-Security debug failed: {exc}"},
+            status_code=500,
+        )
+
+    return JSONResponse(_json_safe(result))
 
 
 @app.post("/api/soap/call")
