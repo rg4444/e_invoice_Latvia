@@ -31,6 +31,8 @@ DEFAULTS = {
     "JAVA_BRIDGE_DIR": "/bridge/java/VdaaDivBridge",
     "JAVA_BRIDGE_LIB_DIR": "/examples/VDAA_docs/Client/JAVA",
     "JAVA_BRIDGE_MAIN": "VdaaDivBridge",
+    "wssec_java_pfx_path": "",
+    "wssec_java_pfx_password": "",
 }
 
 def load_config():
