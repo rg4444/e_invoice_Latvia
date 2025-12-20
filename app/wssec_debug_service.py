@@ -1,7 +1,8 @@
 import os
 import json
-from datetime import datetime
-from typing import Dict, Any, List
+import time
+from datetime import datetime, timezone
+from typing import Dict, Any, List, Optional
 
 from lxml import etree
 
@@ -90,11 +91,44 @@ def _extract_fault_reason(xml_text: str) -> str:
     return ""
 
 
-def run_wssec_scenarios(token: str, scenario_name: str = "all") -> List[Dict[str, Any]]:
+def _extract_message_id(xml_text: str) -> Optional[str]:
+    if not xml_text:
+        return None
+    try:
+        root = etree.fromstring(xml_text.encode("utf-8"))
+    except Exception:
+        return None
+    msg = root.find(".//*[local-name()='MessageID']")
+    if msg is not None and msg.text:
+        return msg.text.strip()
+    return None
+
+
+def _extract_action(xml_text: str) -> Optional[str]:
+    if not xml_text:
+        return None
+    try:
+        root = etree.fromstring(xml_text.encode("utf-8"))
+    except Exception:
+        return None
+    action = root.find(".//*[local-name()='Action']")
+    if action is not None and action.text:
+        return action.text.strip()
+    return None
+
+
+def run_wssec_scenarios(
+    token: str,
+    scenario_name: str = "all",
+    endpoint_mode: str = "debug",
+) -> List[Dict[str, Any]]:
     os.makedirs(DEBUG_DIR, exist_ok=True)
 
     config = get_unified_config()
-    endpoint = config.debug_endpoint or config.endpoint
+    if endpoint_mode == "debug":
+        endpoint = config.debug_endpoint or config.endpoint
+    else:
+        endpoint = config.endpoint
 
     if scenario_name != "all":
         selected = _find_scenario(scenario_name)
@@ -107,6 +141,8 @@ def run_wssec_scenarios(token: str, scenario_name: str = "all") -> List[Dict[str
     results: List[Dict[str, Any]] = []
 
     for sc in scenarios:
+        sent_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        started = time.perf_counter()
         envelope_xml = build_signed_get_initial_addressee_request(
             endpoint=endpoint,
             token=token or "",
@@ -149,22 +185,38 @@ def run_wssec_scenarios(token: str, scenario_name: str = "all") -> List[Dict[str
             key_pass="",
         )
 
+        took_ms = int((time.perf_counter() - started) * 1000)
         status = http.get("status")
         body = http.get("body") or ""
         fault_reason = _extract_fault_reason(body)
+        message_id = _extract_message_id(envelope_xml)
+        soap_action = _extract_action(envelope_xml)
 
         with open(resp_path, "w", encoding="utf-8") as fh:
             fh.write(body)
 
         results.append(
             {
+                "ok": bool(status and 200 <= status < 300),
+                "engine": "python",
+                "operation": "GetInitialAddresseeRecordList",
+                "endpoint": endpoint,
+                "endpoint_mode": endpoint_mode,
+                "sent_utc": sent_utc,
+                "took_ms": took_ms,
+                "http_status": status,
+                "soap_action": soap_action,
+                "message_id": message_id,
+                "request_saved_path": req_path,
+                "response_saved_path": resp_path,
+                "parsed_saved_path": None,
                 "scenario": sc["name"],
                 "label": sc.get("label", sc["name"]),
                 "policy_mode": bool(sc.get("policy_mode")),
-                "http_status": status,
                 "fault_reason": fault_reason,
                 "request_file": req_name,
                 "response_file": resp_name,
+                "stderr": "",
             }
         )
 

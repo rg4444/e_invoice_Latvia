@@ -25,6 +25,11 @@ DEFAULTS = {
     "auth_credentials": [
         {"username": "Administrator", "password": "invoicetool"},
     ],
+    "DOTNET_BRIDGE_PATH": "/bridge/dotnet/VdaaDivBridge/VdaaDivBridge.exe",
+    "DOTNET_CERT_PFX_PATH": "",
+    "DOTNET_CERT_PFX_PASSWORD": "",
+    "JAVA_BRIDGE_DIR": "/bridge/java/VdaaDivBridge",
+    "JAVA_BRIDGE_MAIN": "VdaaDivBridge",
 }
 
 def load_config():

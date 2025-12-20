@@ -7,6 +7,18 @@
   For <strong>GetChangedAddresseeRecordList</strong>, provide the <em>MaxVersion</em> value from your last successful batch as <em>LastVersion</em>.
 </p>
 
+<div class="mb-3">
+  <label class="form-label" for="soap_engine">SOAP Engine</label>
+  <select id="soap_engine" class="form-select">
+    <option value="python" selected>Python (custom WSSE)</option>
+    <option value="dotnet">.NET (VDAA SDK)</option>
+    <option value="java">Java (VDAA SDK)</option>
+  </select>
+  <div class="form-text">
+    Use .NET/Java for official VDAA SDK behaviour; use Python for custom experiments.
+  </div>
+</div>
+
 <div class="card mb-4">
   <div class="card-body">
     <h5 class="card-title">Initial Addressee Record List</h5>
@@ -59,32 +71,30 @@
 
     let lines = [];
 
-    if (data.operation) lines.push("Operation: " + data.operation);
-    if (typeof data.http_status !== "undefined") lines.push("HTTP status: " + data.http_status);
-    if (typeof data.took_ms !== "undefined") lines.push("Duration: " + data.took_ms + " ms");
-    if (data.endpoint) lines.push("Endpoint: " + data.endpoint);
-    if (data.ws_security) {
-      const ws = data.ws_security;
-      if (ws.ws_security_active) {
-        lines.push("WS-Security mode: " + (ws.mode || "enabled"));
-        if (ws.certificate_path) {
-          lines.push("Signing certificate: " + ws.certificate_path);
-        }
-      }
-      if (ws.ws_addressing) {
-        lines.push("WS-Addressing: enabled");
-      }
-      if (typeof ws.verify_tls !== "undefined") {
-        lines.push("TLS verification: " + (ws.verify_tls ? "on" : "off"));
-      }
+    if (data.engine || data.operation) {
+      lines.push("Engine: " + (data.engine || "?") + " | Operation: " + (data.operation || "?"));
     }
-    if (data.addressee_count) lines.push("Addressee records in this batch: " + data.addressee_count);
-    if (data.next_token) lines.push("Next token for paging: " + data.next_token);
-    if (typeof data.max_version !== "undefined") lines.push("MaxVersion for delta: " + data.max_version);
-    if (data.filename) lines.push("Saved response: {{ addresses_dir }}/" + data.filename);
-    if (data.request_filename) lines.push("Saved request: {{ addresses_dir }}/" + data.request_filename);
-    if (data.fault) lines.push("SOAP fault: " + data.fault);
-    if (data.fault_code) lines.push("SOAP fault code: " + data.fault_code);
+    if (data.endpoint || data.endpoint_mode) {
+      lines.push("Endpoint: " + (data.endpoint || "?") + " (" + (data.endpoint_mode || "normal") + ")");
+    }
+    if (data.sent_utc || data.message_id) {
+      lines.push("Sent: " + (data.sent_utc || "?") + " | MessageID: " + (data.message_id || "?"));
+    }
+    if (typeof data.http_status !== "undefined" || typeof data.took_ms !== "undefined") {
+      lines.push("HTTP status: " + (data.http_status ?? "?") + " | Duration: " + (data.took_ms ?? "?") + " ms");
+    }
+    if (data.request_saved_path) lines.push("Saved request: " + data.request_saved_path);
+    if (data.response_saved_path) lines.push("Saved response: " + data.response_saved_path);
+    if (data.parsed_saved_path) lines.push("Saved parsed list: " + data.parsed_saved_path);
+
+    const summary = data.summary || {};
+    if (summary.addressee_count) lines.push("Addressee records in this batch: " + summary.addressee_count);
+    if (summary.next_token) lines.push("Next token for paging: " + summary.next_token);
+    if (typeof summary.max_version !== "undefined") lines.push("MaxVersion for delta: " + summary.max_version);
+
+    if (data.fault_reason) lines.push("Fault reason: " + data.fault_reason);
+    if (data.fault_code) lines.push("Fault code: " + data.fault_code);
+    if (data.stderr) lines.push("stderr: " + data.stderr);
     if (data.error) lines.push("Error: " + data.error);
 
     const summary = lines.join("\n");
@@ -118,16 +128,28 @@
 
   initialBtn.addEventListener('click', () => {
     const token = document.getElementById('addr_token').value.trim();
+    const engine = document.getElementById('soap_engine').value;
     const fd = new FormData();
+    fd.append('engine', engine);
+    fd.append('operation', 'GetInitialAddresseeRecordList');
     fd.append('token', token);
-    callEndpoint('/address/initial', fd, initialBtn);
+    fd.append('endpoint_mode', 'normal');
+    fd.append('save_raw', 'true');
+    fd.append('parse', 'true');
+    callEndpoint('/api/soap/call', fd, initialBtn);
   });
 
   changedBtn.addEventListener('click', () => {
     const version = document.getElementById('addr_version').value.trim();
+    const engine = document.getElementById('soap_engine').value;
     const fd = new FormData();
-    fd.append('last_version', version);
-    callEndpoint('/address/changed', fd, changedBtn);
+    fd.append('engine', engine);
+    fd.append('operation', 'GetChangedAddresseeRecordList');
+    fd.append('token', version);
+    fd.append('endpoint_mode', 'normal');
+    fd.append('save_raw', 'true');
+    fd.append('parse', 'true');
+    callEndpoint('/api/soap/call', fd, changedBtn);
   });
 })();
 </script>

@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "engine": "python|dotnet|java",
+  "operation": "GetInitialAddresseeRecordList",
+  "endpoint": "https://...",
+  "endpoint_mode": "normal|debug",
+  "sent_utc": "YYYY-MM-DDTHH:MM:SSZ",
+  "took_ms": 123,
+  "http_status": 200,
+  "soap_action": "http://....",
+  "message_id": "urn:uuid:....",
+  "request_saved_path": "/data/addresses/..._request.xml",
+  "response_saved_path": "/data/addresses/...xml",
+  "parsed_saved_path": "/data/addresses/...json",
+  "fault_code": null,
+  "fault_reason": null,
+  "stderr": ""
+}

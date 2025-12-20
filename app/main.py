@@ -1,4 +1,4 @@
-import os, logging, base64, uuid, time, json, subprocess
+import os, logging, base64, uuid, time, json, subprocess, shutil
 from datetime import datetime
 from typing import Any
 from fastapi import FastAPI, Request, Form, Query, UploadFile, File, HTTPException
@@ -41,6 +41,7 @@ from kosit_runner import run_kosit
 from address_service import call_unified_operation, UnifiedServiceError
 from div_envelope import EnvelopeMetadata, build_div_envelope, parse_recipient_list
 from wssec_debug_service import run_wssec_scenarios
+from soap_engines.dispatcher import call_engine
 import pdf_ocr
 
 INVOICE_DIR = "/data/invoices"
@@ -329,6 +330,37 @@ def _json_safe(value):
     return str(value)
 
 
+def _resolve_endpoint(cfg: dict[str, Any], endpoint_mode: str) -> str:
+    if endpoint_mode == "debug":
+        return (cfg.get("debug_endpoint") or cfg.get("endpoint") or "").strip()
+    return (cfg.get("endpoint") or "").strip()
+
+
+def _engine_capabilities(cfg: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    dotnet_path = (cfg.get("DOTNET_BRIDGE_PATH") or "").strip()
+    dotnet_available = bool(dotnet_path and os.path.exists(dotnet_path))
+
+    java_path = shutil.which("java")
+    java_bridge_dir = (cfg.get("JAVA_BRIDGE_DIR") or "").strip()
+    java_lib_dir = os.path.join(java_bridge_dir, "lib") if java_bridge_dir else ""
+    java_has_libs = False
+    if java_lib_dir and os.path.isdir(java_lib_dir):
+        java_has_libs = any(name.endswith(".jar") for name in os.listdir(java_lib_dir))
+    java_available = bool(java_path and java_bridge_dir and java_has_libs)
+
+    return {
+        "python": {"available": True, "detail": "Bundled in this container"},
+        "dotnet": {
+            "available": dotnet_available,
+            "detail": dotnet_path or "DOTNET_BRIDGE_PATH not configured",
+        },
+        "java": {
+            "available": java_available,
+            "detail": java_bridge_dir or "JAVA_BRIDGE_DIR not configured",
+        },
+    }
+
+
 def _invoke_addressee_operation(
     operation: str,
     param_name: str,
@@ -434,6 +466,17 @@ def _invoke_addressee_operation(
     safe_payload = _json_safe(payload)
 
     return JSONResponse(safe_payload)
+
+
+async def _load_request_data(request: Request) -> dict[str, Any]:
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        data = await request.json()
+        if isinstance(data, dict):
+            return data
+        return {}
+    form = await request.form()
+    return dict(form)
 
 @app.get("/schematron/list")
 def schematron_list():
@@ -1048,6 +1091,7 @@ def wssec_debug_page(request: Request):
         "wssec_debug.html",
         request,
         cfg=cfg,
+        engine_caps=_engine_capabilities(cfg),
         active_tab="wssec",
     )
 
@@ -1056,9 +1100,23 @@ def wssec_debug_page(request: Request):
 def wssec_debug_run(
     token: str = Form(""),
     scenario: str = Form("all"),
+    engine: str = Form("python"),
+    endpoint_mode: str = Form("debug"),
 ):
+    if engine != "python":
+        return JSONResponse(
+            content={
+                "ok": False,
+                "error": "WS-Security scenarios are only available in the Python engine.",
+            },
+            status_code=400,
+        )
     try:
-        results = run_wssec_scenarios(token=token or "", scenario_name=scenario)
+        results = run_wssec_scenarios(
+            token=token or "",
+            scenario_name=scenario,
+            endpoint_mode=endpoint_mode or "debug",
+        )
         return JSONResponse(
             content={
                 "ok": True,
@@ -1073,6 +1131,56 @@ def wssec_debug_run(
             },
             status_code=500,
         )
+
+
+@app.post("/api/soap/call")
+async def soap_call(request: Request):
+    data = await _load_request_data(request)
+
+    engine = (data.get("engine") or "python").strip().lower()
+    operation = (data.get("operation") or "").strip()
+    token = (data.get("token") or "").strip()
+    endpoint_mode = (data.get("endpoint_mode") or "normal").strip().lower()
+    save_raw = _truthy(data.get("save_raw", True))
+    parse = _truthy(data.get("parse", True))
+
+    if not operation:
+        return JSONResponse(
+            {"ok": False, "error": "operation is required", "http_status_client": 400},
+            status_code=400,
+        )
+
+    cfg = load_config()
+    endpoint = _resolve_endpoint(cfg, endpoint_mode)
+    if not endpoint:
+        return JSONResponse(
+            {"ok": False, "error": "Endpoint is not configured.", "http_status_client": 400},
+            status_code=400,
+        )
+
+    try:
+        result = call_engine(
+            engine=engine,
+            operation=operation,
+            token=token,
+            endpoint=endpoint,
+            out_dir=ADDRESSES_DIR,
+            endpoint_mode=endpoint_mode,
+            save_raw=save_raw,
+            parse=parse,
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            {"ok": False, "error": str(exc), "http_status_client": 400},
+            status_code=400,
+        )
+    except Exception as exc:
+        return JSONResponse(
+            {"ok": False, "error": f"Unexpected internal error: {exc}", "http_status_client": 500},
+            status_code=500,
+        )
+
+    return JSONResponse(_json_safe(result))
 
 
 @app.post("/address/initial")
