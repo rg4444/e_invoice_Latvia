@@ -933,7 +933,7 @@ def _collect_transport_debug(transport: CapturingTransport) -> Dict[str, Any]:
     return info
 
 
-def create_unified_client() -> tuple[
+def create_unified_client(endpoint_override: str | None = None) -> tuple[
     Client,
     Any,
     CapturingTransport,
@@ -942,6 +942,17 @@ def create_unified_client() -> tuple[
     Signature,
 ]:
     config = get_unified_config()
+    if endpoint_override:
+        override_endpoint, override_wsdl = _derive_endpoint_and_wsdl(endpoint_override)
+        config = UnifiedServiceConfig(
+            endpoint=override_endpoint,
+            debug_endpoint=config.debug_endpoint,
+            wsdl_url=override_wsdl,
+            client_cert=config.client_cert,
+            client_key=config.client_key,
+            ca_bundle=config.ca_bundle,
+            verify_tls=config.verify_tls,
+        )
 
     session = Session()
     session.cert = (config.client_cert, config.client_key)
@@ -973,14 +984,17 @@ def create_unified_client() -> tuple[
     return client, service, transport, history, config, wsse
 
 
-def _call_initial_addressee_direct(token: str) -> AddressCallResult:
+def _call_initial_addressee_direct(
+    token: str,
+    endpoint_override: str | None = None,
+) -> AddressCallResult:
     """
     Direct HTTP+SOAP path for GetInitialAddresseeRecordList using our
     manually built, signed SOAP 1.2 envelope.
     """
 
     config = get_unified_config()
-    endpoint = config.endpoint
+    endpoint = endpoint_override or config.endpoint
     soap_action = (
         "http://vraa.gov.lv/div/uui/2011/11/"
         "UnifiedServiceInterface/GetInitialAddresseeRecordList"
@@ -1044,13 +1058,20 @@ def _call_initial_addressee_direct(token: str) -> AddressCallResult:
     )
 
 
-def call_unified_operation(operation: str, **params: Any) -> AddressCallResult:
+def call_unified_operation(
+    operation: str,
+    *,
+    endpoint_override: str | None = None,
+    **params: Any,
+) -> AddressCallResult:
     # NEW: direct signed-SOAP path for initial addressee list
     if operation == "GetInitialAddresseeRecordList":
         token = params.get("Token", "") or ""
-        return _call_initial_addressee_direct(token=token)
+        return _call_initial_addressee_direct(token=token, endpoint_override=endpoint_override)
 
-    _client, service, transport, history, config, wsse = create_unified_client()
+    _client, service, transport, history, config, wsse = create_unified_client(
+        endpoint_override=endpoint_override
+    )
 
     if not hasattr(service, operation):
         raise UnifiedServiceError(f"UnifiedService does not expose operation {operation}")
