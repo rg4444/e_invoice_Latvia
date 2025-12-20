@@ -22,6 +22,10 @@ def _bridge_main(cfg: dict[str, Any]) -> str:
     return (cfg.get("JAVA_BRIDGE_MAIN") or os.getenv("JAVA_BRIDGE_MAIN") or "VdaaDivBridge").strip()
 
 
+def _bridge_lib_dir(cfg: dict[str, Any]) -> str:
+    return (cfg.get("JAVA_BRIDGE_LIB_DIR") or os.getenv("JAVA_BRIDGE_LIB_DIR") or "").strip()
+
+
 def _build_base_result(
     *,
     ok: bool,
@@ -80,7 +84,7 @@ def call_java(
         result["fault_reason"] = "JAVA_BRIDGE_DIR is not configured"
         return result
 
-    lib_dir = os.path.join(bridge_dir, "lib")
+    lib_dir = _bridge_lib_dir(cfg) or os.path.join(bridge_dir, "lib")
     if not os.path.isdir(lib_dir):
         took_ms = int((time.perf_counter() - started) * 1000)
         result = _build_base_result(

@@ -29,6 +29,7 @@ DEFAULTS = {
     "DOTNET_CERT_PFX_PATH": "",
     "DOTNET_CERT_PFX_PASSWORD": "",
     "JAVA_BRIDGE_DIR": "/bridge/java/VdaaDivBridge",
+    "JAVA_BRIDGE_LIB_DIR": "/examples/VDAA_docs/Client/JAVA",
     "JAVA_BRIDGE_MAIN": "VdaaDivBridge",
 }
 
