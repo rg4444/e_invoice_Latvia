@@ -12,6 +12,7 @@ import java.security.cert.X509Certificate;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,9 +21,17 @@ import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBIntrospector;
 import javax.xml.bind.Marshaller;
+import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.ws.Binding;
 import javax.xml.ws.BindingProvider;
 import javax.xml.ws.handler.Handler;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
 
 import lv.gov.vraa.div.uui._2011._11.UnifiedServiceInterface;
 import lv.gov.vraa.xmlschemas.div.uui._2011._11.GetInitialAddresseeRecordListInput;
@@ -34,6 +43,8 @@ import vraa.div.client.configuration.InternalConfiguration;
 
 public class VdaaDivBridge {
     private static final String OP_GET_INITIAL_ADDRESSEE = "GetInitialAddresseeRecordList";
+    private static final String SOAP_ACTION_GET_INITIAL =
+        "http://vraa.gov.lv/div/uui/2011/11/UnifiedServiceInterface/GetInitialAddresseeRecordList";
 
     public static void main(String[] args) {
         Map<String, String> opts = parseArgs(args);
@@ -109,11 +120,17 @@ public class VdaaDivBridge {
             SoapTraceHandler traceHandler = new SoapTraceHandler(outDir, operation, timestamp);
             BindingProvider bindingProvider = (BindingProvider) service;
             Binding binding = bindingProvider.getBinding();
-            List<Handler> handlerChain = binding.getHandlerChain();
-            handlerChain.add(traceHandler);
-            binding.setHandlerChain(handlerChain);
+            List<Handler> existing = binding.getHandlerChain();
+            List<Handler> updated = new ArrayList<>();
+            if (existing != null) {
+                updated.addAll(existing);
+            }
+            updated.add(traceHandler);
+            binding.setHandlerChain(updated);
 
+            long callStarted = System.nanoTime();
             Object response = service.getInitialAddresseeRecordList(input);
+            long tookMs = Math.max(0, (System.nanoTime() - callStarted) / 1_000_000);
             marshalPayload(response, responsePath);
 
             Map<String, Object> payload = new LinkedHashMap<>();
@@ -121,12 +138,20 @@ public class VdaaDivBridge {
             payload.put("engine", "java");
             payload.put("operation", operation);
             payload.put("endpoint", endpoint);
+            payload.put("endpoint_mode", endpointMode(endpoint));
+            payload.put("sent_utc", isoUtcNow());
+            payload.put("took_ms", tookMs);
+            payload.put("http_status", extractHttpStatus(bindingProvider));
+            payload.put("soap_action", SOAP_ACTION_GET_INITIAL);
             payload.put("request_saved_path", requestPath.toString());
             payload.put("response_saved_path", responsePath.toString());
-            payload.put("saved_request_path", requestPath.toString());
-            payload.put("saved_response_path", responsePath.toString());
             payload.put("soap_request_path", traceHandler.getRequestPath());
             payload.put("soap_response_path", traceHandler.getResponsePath());
+            payload.put("trace_error", traceHandler.getTraceError());
+            payload.put("message_id", extractMessageId(traceHandler.getRequestPath()));
+            FaultInfo faultInfo = extractFaultInfo(traceHandler.getResponsePath());
+            payload.put("fault_code", faultInfo.code);
+            payload.put("fault_reason", faultInfo.reason);
             if (certThumbprint != null) {
                 payload.put("cert_thumbprint_sha1", certThumbprint);
             }
@@ -135,6 +160,106 @@ public class VdaaDivBridge {
             System.out.println(toJson(payload));
         } catch (Exception exc) {
             printError("Exception: " + exc.getMessage(), exc);
+        }
+    }
+
+    private static String endpointMode(String endpoint) {
+        if (endpoint == null) {
+            return "normal";
+        }
+        String normalized = endpoint.toLowerCase();
+        return normalized.contains("debug") ? "debug" : "normal";
+    }
+
+    private static String isoUtcNow() {
+        return new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'").format(new Date());
+    }
+
+    private static Integer extractHttpStatus(BindingProvider provider) {
+        if (provider == null) {
+            return null;
+        }
+        Object value = provider.getResponseContext().get("javax.xml.ws.http.response.code");
+        if (value instanceof Integer) {
+            return (Integer) value;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        return null;
+    }
+
+    private static String extractMessageId(String path) {
+        Document doc = loadXml(path);
+        if (doc == null) {
+            return null;
+        }
+        XPath xpath = XPathFactory.newInstance().newXPath();
+        try {
+            Node node = (Node) xpath.evaluate("//*[local-name()='MessageID']",
+                                              doc, XPathConstants.NODE);
+            if (node != null) {
+                String text = node.getTextContent();
+                if (text != null && !text.trim().isEmpty()) {
+                    return text.trim();
+                }
+            }
+        } catch (XPathExpressionException ignore) {
+            return null;
+        }
+        return null;
+    }
+
+    private static FaultInfo extractFaultInfo(String path) {
+        Document doc = loadXml(path);
+        if (doc == null) {
+            return new FaultInfo(null, null);
+        }
+        XPath xpath = XPathFactory.newInstance().newXPath();
+        try {
+            Node fault = (Node) xpath.evaluate("//*[local-name()='Fault']",
+                                               doc, XPathConstants.NODE);
+            if (fault == null) {
+                return new FaultInfo(null, null);
+            }
+            String code = (String) xpath.evaluate(
+                ".//*[local-name()='Code']/*[local-name()='Value']/text() | .//*[local-name()='faultcode']/text()",
+                fault,
+                XPathConstants.STRING
+            );
+            String reason = (String) xpath.evaluate(
+                ".//*[local-name()='Reason']/*[local-name()='Text']/text() | .//*[local-name()='faultstring']/text()",
+                fault,
+                XPathConstants.STRING
+            );
+            code = (code == null || code.trim().isEmpty()) ? null : code.trim();
+            reason = (reason == null || reason.trim().isEmpty()) ? null : reason.trim();
+            return new FaultInfo(code, reason);
+        } catch (XPathExpressionException ignore) {
+            return new FaultInfo(null, null);
+        }
+    }
+
+    private static Document loadXml(String path) {
+        if (path == null) {
+            return null;
+        }
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            return factory.newDocumentBuilder().parse(Files.newInputStream(Path.of(path)));
+        } catch (Exception ignore) {
+            return null;
+        }
+    }
+
+    private static class FaultInfo {
+        private final String code;
+        private final String reason;
+
+        private FaultInfo(String code, String reason) {
+            this.code = code;
+            this.reason = reason;
         }
     }
 
