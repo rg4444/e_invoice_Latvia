@@ -9,55 +9,18 @@ from typing import Any
 from lxml import etree
 
 from address_service import UnifiedServiceError, call_unified_operation
+from soap_engines.bundle_utils import (
+    extract_fault_info,
+    extract_message_id,
+    make_bundle_dir,
+    parse_addressee_records,
+    write_json,
+    write_text,
+)
 
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _extract_message_id(xml_text: str) -> str | None:
-    if not xml_text:
-        return None
-    try:
-        root = etree.fromstring(xml_text.encode("utf-8"))
-    except Exception:
-        return None
-    message_id = root.find(".//*[local-name()='MessageID']")
-    if message_id is not None and message_id.text:
-        return message_id.text.strip()
-    return None
-
-
-def _extract_fault_info(xml_text: str) -> tuple[str | None, str | None]:
-    if not xml_text:
-        return None, None
-    try:
-        root = etree.fromstring(xml_text.encode("utf-8"))
-    except Exception:
-        return None, None
-
-    for soap_ns in (
-        "http://www.w3.org/2003/05/soap-envelope",
-        "http://schemas.xmlsoap.org/soap/envelope/",
-    ):
-        fault = root.find(f".//{{{soap_ns}}}Fault")
-        if fault is None:
-            continue
-        if soap_ns == "http://www.w3.org/2003/05/soap-envelope":
-            reason = (
-                fault.findtext(f".//{{{soap_ns}}}Reason/{{{soap_ns}}}Text", default="")
-                or ""
-            ).strip()
-            code = (
-                fault.findtext(f".//{{{soap_ns}}}Code/{{{soap_ns}}}Value", default="")
-                or ""
-            ).strip()
-        else:
-            reason = (fault.findtext("faultstring", default="") or "").strip()
-            code = (fault.findtext("faultcode", default="") or "").strip()
-        return code or None, reason or None
-
-    return None, None
 
 
 def _parse_addressees(response_xml: str) -> list[dict[str, str]]:
@@ -227,6 +190,7 @@ def call_python(
     request_path = None
     response_path = None
     parsed_path = None
+    bundle_dir = None
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     if save_raw and call_result.request_xml:
@@ -250,7 +214,7 @@ def call_python(
         fault_code = fault_code or parsed_fault_code
         fault_reason = fault_reason or parsed_fault_reason
 
-    message_id = _extract_message_id(call_result.request_xml)
+    message_id = extract_message_id(call_result.request_xml)
 
     summary = _parse_addressee_summary(call_result.response_xml or "")
 
@@ -275,5 +239,34 @@ def call_python(
             "summary": summary,
         }
     )
+
+    if operation == "GetInitialAddresseeRecordList":
+        bundle_dir = make_bundle_dir(operation)
+        request_payload_path = os.path.join(bundle_dir, "request_payload.xml")
+        response_payload_path = os.path.join(bundle_dir, "response_payload.xml")
+        soap_request_path = os.path.join(bundle_dir, "soap_request.xml")
+        soap_response_path = os.path.join(bundle_dir, "soap_response.xml")
+        parsed_records_path = os.path.join(bundle_dir, "parsed_records.json")
+        engine_result_path = os.path.join(bundle_dir, "engine_result.json")
+        stderr_path = os.path.join(bundle_dir, "stderr.log")
+
+        write_text(request_payload_path, call_result.request_xml or "")
+        write_text(response_payload_path, call_result.response_xml or "")
+        write_text(soap_request_path, "")
+        write_text(soap_response_path, "")
+        write_text(stderr_path, stderr)
+
+        parsed_records = parse_addressee_records(call_result.response_xml or "")
+        write_json(parsed_records_path, parsed_records)
+
+        result["trace_error"] = "Python engine cannot capture SOAP envelopes"
+
+        result["request_saved_path"] = request_payload_path
+        result["response_saved_path"] = response_payload_path
+        result["parsed_saved_path"] = parsed_records_path
+        result["soap_request_path"] = soap_request_path
+        result["soap_response_path"] = soap_response_path
+
+        write_json(engine_result_path, result)
 
     return result

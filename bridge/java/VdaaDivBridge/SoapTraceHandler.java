@@ -15,6 +15,7 @@ public class SoapTraceHandler implements SOAPHandler<SOAPMessageContext> {
     private final String timestamp;
     private String requestPath;
     private String responsePath;
+    private String traceError;
 
     public SoapTraceHandler(String outDir, String operation, String timestamp) {
         this.outDir = outDir;
@@ -32,6 +33,7 @@ public class SoapTraceHandler implements SOAPHandler<SOAPMessageContext> {
         String name = operation + "_" + timestamp + "_" + suffix;
         Path outPath = Path.of(outDir, name);
         try {
+            Files.createDirectories(Path.of(outDir));
             SOAPMessage message = context.getMessage();
             if (message != null) {
                 ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -39,6 +41,7 @@ public class SoapTraceHandler implements SOAPHandler<SOAPMessageContext> {
                 Files.write(outPath, output.toByteArray());
             }
         } catch (Exception exc) {
+            traceError = exc.toString();
             return true;
         }
         if (outbound) {
@@ -70,5 +73,9 @@ public class SoapTraceHandler implements SOAPHandler<SOAPMessageContext> {
 
     public String getResponsePath() {
         return responsePath;
+    }
+
+    public String getTraceError() {
+        return traceError;
     }
 }

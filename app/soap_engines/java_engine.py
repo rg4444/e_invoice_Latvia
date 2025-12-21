@@ -7,6 +7,15 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from soap_engines.bundle_utils import (
+    assert_soap_success,
+    copy_file,
+    load_xml,
+    make_bundle_dir,
+    parse_addressee_records,
+    write_json,
+    write_text,
+)
 from storage import load_config
 
 
@@ -162,12 +171,64 @@ def call_java(
                 base["sent_utc"] = sent_utc
                 base["took_ms"] = took_ms
                 base["stderr"] = stderr
-    elif proc.returncode != 0:
+    else:
         base["fault_reason"] = "Bridge returned no output"
 
     if proc.returncode != 0:
         base["ok"] = False
         if not base.get("fault_reason"):
             base["fault_reason"] = "Bridge process failed"
+
+    if operation == "GetInitialAddresseeRecordList":
+        bundle_dir = make_bundle_dir(operation)
+        engine_stdout_path = os.path.join(bundle_dir, "engine_stdout.json")
+        engine_stdout_text_path = os.path.join(bundle_dir, "engine_stdout.txt")
+        stderr_path = os.path.join(bundle_dir, "stderr.log")
+        engine_result_path = os.path.join(bundle_dir, "engine_result.json")
+        request_payload_path = os.path.join(bundle_dir, "request_payload.xml")
+        response_payload_path = os.path.join(bundle_dir, "response_payload.xml")
+        soap_request_path = os.path.join(bundle_dir, "soap_request.xml")
+        soap_response_path = os.path.join(bundle_dir, "soap_response.xml")
+        parsed_records_path = os.path.join(bundle_dir, "parsed_records.json")
+
+        if stdout:
+            try:
+                json.loads(stdout)
+            except json.JSONDecodeError:
+                write_text(engine_stdout_text_path, stdout)
+            else:
+                write_text(engine_stdout_path, stdout)
+        else:
+            write_text(engine_stdout_text_path, "")
+        write_text(stderr_path, stderr)
+        copy_file(base.get("request_saved_path"), request_payload_path)
+        copy_file(base.get("response_saved_path"), response_payload_path)
+        copy_file(base.get("soap_request_path"), soap_request_path)
+        copy_file(base.get("soap_response_path"), soap_response_path)
+
+        response_xml = load_xml(base.get("response_saved_path")) or load_xml(
+            base.get("soap_response_path")
+        )
+        parsed_records = parse_addressee_records(response_xml)
+        write_json(parsed_records_path, parsed_records)
+
+        soap_xml = load_xml(base.get("soap_response_path")) or ""
+        soap_assert = assert_soap_success(soap_xml)
+        if not soap_assert["ok"]:
+            base["ok"] = False
+            base["fault_code"] = base.get("fault_code") or soap_assert["fault_code"]
+            base["fault_reason"] = base.get("fault_reason") or soap_assert["fault_reason"]
+
+        if stderr and "Exception" in stderr:
+            base["ok"] = False
+            base["fault_reason"] = base.get("fault_reason") or "Engine stderr contains Exception"
+
+        base["request_saved_path"] = request_payload_path
+        base["response_saved_path"] = response_payload_path
+        base["parsed_saved_path"] = parsed_records_path
+        base["soap_request_path"] = soap_request_path
+        base["soap_response_path"] = soap_response_path
+
+        write_json(engine_result_path, base)
 
     return base
