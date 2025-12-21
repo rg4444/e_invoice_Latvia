@@ -118,15 +118,15 @@
            class="bg-dark text-light p-3 rounded small"
            style="max-height: 420px; overflow-y: auto; font-family: monospace;"
            hidden></pre>
-      <div id="wssec_downloads" class="mt-3" hidden>
+      <div id="wssec_downloads" class="mt-3">
         <div class="btn-group" role="group" aria-label="Download artifacts">
-          <a id="wssec_open_xml" class="btn btn-sm btn-outline-light" target="_blank" rel="noopener">
+          <a id="wssec_open_xml" class="btn btn-sm btn-outline-primary disabled" target="_blank" rel="noopener">
             Open response XML
           </a>
-          <a id="wssec_download_json" class="btn btn-sm btn-outline-light" target="_blank" rel="noopener">
+          <a id="wssec_download_json" class="btn btn-sm btn-outline-primary disabled" target="_blank" rel="noopener">
             Download JSON
           </a>
-          <a id="wssec_download_csv" class="btn btn-sm btn-outline-light" target="_blank" rel="noopener">
+          <a id="wssec_download_csv" class="btn btn-sm btn-outline-primary disabled" target="_blank" rel="noopener">
             Download CSV
           </a>
         </div>
@@ -170,7 +170,9 @@
 
     resultBox.hidden = false;
     resultBox.textContent = "Running SDK call...\n";
-    downloadsBox.hidden = true;
+    openXmlLink.classList.add('disabled');
+    downloadJsonLink.classList.add('disabled');
+    downloadCsvLink.classList.add('disabled');
 
     try {
       const payload = {
@@ -240,9 +242,6 @@
         } else {
           downloadCsvLink.removeAttribute('href');
           downloadCsvLink.classList.add('disabled');
-        }
-        if (responsePath || jsonPath || csvPath) {
-          downloadsBox.hidden = false;
         }
         if (data.fault_reason) {
           lines.push("Fault reason: " + data.fault_reason);
