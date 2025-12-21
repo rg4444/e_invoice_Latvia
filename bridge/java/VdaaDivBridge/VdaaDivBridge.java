@@ -1,4 +1,5 @@
 import java.io.FileInputStream;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
@@ -11,7 +12,16 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBElement;
+import javax.xml.bind.JAXBIntrospector;
+import javax.xml.bind.Marshaller;
+import javax.xml.ws.Binding;
+import javax.xml.ws.BindingProvider;
+import javax.xml.ws.handler.Handler;
 
 import lv.gov.vraa.div.uui._2011._11.UnifiedServiceInterface;
 import lv.gov.vraa.xmlschemas.div.uui._2011._11.GetInitialAddresseeRecordListInput;
@@ -68,8 +78,8 @@ public class VdaaDivBridge {
         try {
             Files.createDirectories(Path.of(outDir));
             String timestamp = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date());
-            String requestFile = operation + "_java_" + timestamp + "_request.txt";
-            String responseFile = operation + "_java_" + timestamp + "_response.txt";
+            String requestFile = operation + "_java_" + timestamp + "_request.xml";
+            String responseFile = operation + "_java_" + timestamp + "_response.xml";
             Path requestPath = Path.of(outDir, requestFile);
             Path responsePath = Path.of(outDir, responseFile);
 
@@ -77,9 +87,9 @@ public class VdaaDivBridge {
             GetInitialAddresseeRecordListInput input = new GetInitialAddresseeRecordListInput();
             input.setToken(factory.createGetInitialAddresseeRecordListInputToken(token));
 
-            String requestSummary = "operation: " + operation + System.lineSeparator()
-                + "token: " + token + System.lineSeparator();
-            Files.writeString(requestPath, requestSummary, StandardCharsets.UTF_8);
+            JAXBElement<GetInitialAddresseeRecordListInput> requestElement =
+                factory.createGetInitialAddresseeRecordListInput(input);
+            marshalPayload(requestElement, requestPath);
 
             ClientConfiguration config = new ClientConfiguration();
             config.setServiceAddress(endpoint);
@@ -95,10 +105,15 @@ public class VdaaDivBridge {
             IntegrationClientContext context = new IntegrationClientContext(internal);
             UnifiedServiceInterface service = context.call();
 
-            service.getInitialAddresseeRecordList(input);
-            String responseSummary = "operation: " + operation + System.lineSeparator()
-                + "status: success" + System.lineSeparator();
-            Files.writeString(responsePath, responseSummary, StandardCharsets.UTF_8);
+            SoapTraceHandler traceHandler = new SoapTraceHandler(outDir, operation, timestamp);
+            BindingProvider bindingProvider = (BindingProvider) service;
+            Binding binding = bindingProvider.getBinding();
+            List<Handler> handlerChain = binding.getHandlerChain();
+            handlerChain.add(traceHandler);
+            binding.setHandlerChain(handlerChain);
+
+            Object response = service.getInitialAddresseeRecordList(input);
+            marshalPayload(response, responsePath);
 
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("ok", true);
@@ -109,6 +124,8 @@ public class VdaaDivBridge {
             payload.put("response_saved_path", responsePath.toString());
             payload.put("saved_request_path", requestPath.toString());
             payload.put("saved_response_path", responsePath.toString());
+            payload.put("soap_request_path", traceHandler.getRequestPath());
+            payload.put("soap_response_path", traceHandler.getResponsePath());
             if (certThumbprint != null) {
                 payload.put("cert_thumbprint_sha1", certThumbprint);
             }
@@ -184,6 +201,34 @@ public class VdaaDivBridge {
         }
         sb.append("}");
         return sb.toString();
+    }
+
+    private static void marshalPayload(Object payload, Path outputPath) throws Exception {
+        if (payload == null) {
+            Files.writeString(outputPath, "", StandardCharsets.UTF_8);
+            return;
+        }
+        Object toMarshal = payload;
+        JAXBContext context;
+        if (payload instanceof JAXBElement) {
+            context = JAXBContext.newInstance(((JAXBElement<?>) payload).getDeclaredType());
+        } else {
+            context = JAXBContext.newInstance(payload.getClass());
+            JAXBIntrospector introspector = context.createJAXBIntrospector();
+            if (introspector.getElementName(payload) == null) {
+                if (payload instanceof GetInitialAddresseeRecordListInput) {
+                    ObjectFactory factory = new ObjectFactory();
+                    toMarshal = factory.createGetInitialAddresseeRecordListInput(
+                        (GetInitialAddresseeRecordListInput) payload
+                    );
+                }
+            }
+        }
+        Marshaller marshaller = context.createMarshaller();
+        marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
+        try (OutputStream output = Files.newOutputStream(outputPath)) {
+            marshaller.marshal(toMarshal, output);
+        }
     }
 
     private static String escapeJson(String value) {

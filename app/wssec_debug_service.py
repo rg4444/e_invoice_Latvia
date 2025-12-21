@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import csv
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
@@ -250,6 +251,88 @@ def _load_xml(path: Optional[str]) -> Optional[str]:
         return None
 
 
+def _local_name(tag: str) -> str:
+    if "}" in tag:
+        return tag.split("}", 1)[1]
+    return tag
+
+
+def _element_to_data(element: etree._Element) -> Any:
+    children = [child for child in element if isinstance(child.tag, str)]
+    if not children:
+        return (element.text or "").strip()
+    data: dict[str, Any] = {}
+    for child in children:
+        key = _local_name(child.tag)
+        value = _element_to_data(child)
+        if key in data:
+            if not isinstance(data[key], list):
+                data[key] = [data[key]]
+            data[key].append(value)
+        else:
+            data[key] = value
+    return data
+
+
+def _extract_repeating_records(xml_text: str) -> list[dict[str, Any]]:
+    try:
+        root = etree.fromstring(xml_text.encode("utf-8"))
+    except Exception:
+        return []
+    candidates: list[list[etree._Element]] = []
+    for parent in root.iter():
+        children = [child for child in parent if isinstance(child.tag, str)]
+        if len(children) < 2:
+            continue
+        grouped: dict[str, list[etree._Element]] = {}
+        for child in children:
+            grouped.setdefault(child.tag, []).append(child)
+        for items in grouped.values():
+            if len(items) >= 2:
+                candidates.append(items)
+    if not candidates:
+        return []
+    best = max(candidates, key=len)
+    records = []
+    for item in best:
+        data = _element_to_data(item)
+        if isinstance(data, dict):
+            records.append(data)
+        else:
+            records.append({"value": data})
+    return records
+
+
+def _save_response_artifacts(response_path: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    if not response_path or not os.path.isfile(response_path):
+        return None, None
+    xml_text = _load_xml(response_path)
+    if not xml_text:
+        return None, None
+    records = _extract_repeating_records(xml_text)
+    base_path = response_path
+    if base_path.lower().endswith(".xml"):
+        base_path = base_path[:-4]
+    json_path = f"{base_path}.json"
+    payload = {
+        "record_count": len(records),
+        "records": records,
+        "extraction": "best_effort_repeating_nodes",
+    }
+    with open(json_path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2, ensure_ascii=False)
+    csv_path = None
+    if records and all(isinstance(rec, dict) for rec in records):
+        fieldnames = sorted({key for rec in records for key in rec.keys()})
+        csv_path = f"{base_path}.csv"
+        with open(csv_path, "w", encoding="utf-8", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=fieldnames)
+            writer.writeheader()
+            for rec in records:
+                writer.writerow(rec)
+    return json_path, csv_path
+
+
 def run_wssec_single_call(
     *,
     engine: str,
@@ -313,6 +396,7 @@ def run_wssec_single_call(
 
     request_xml = _load_xml(request_path)
     response_xml = _load_xml(response_path)
+    response_json_path, response_csv_path = _save_response_artifacts(response_path)
 
     response = {
         "ok": result.get("ok", False),
@@ -326,6 +410,8 @@ def run_wssec_single_call(
         "saved_response_path": response_path,
         "request_saved_path": request_path,
         "response_saved_path": response_path,
+        "response_json_path": response_json_path,
+        "response_csv_path": response_csv_path,
         "http_status": result.get("http_status"),
         "took_ms": result.get("took_ms"),
         "stderr": result.get("stderr", ""),

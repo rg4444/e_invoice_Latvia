@@ -40,7 +40,7 @@ from schematron import run_schematron
 from kosit_runner import run_kosit
 from address_service import call_unified_operation, UnifiedServiceError
 from div_envelope import EnvelopeMetadata, build_div_envelope, parse_recipient_list
-from wssec_debug_service import run_wssec_scenarios, run_wssec_single_call
+from wssec_debug_service import run_wssec_scenarios, run_wssec_single_call, DEBUG_DIR
 from soap_engines.dispatcher import call_engine
 import pdf_ocr
 
@@ -49,6 +49,7 @@ SAMPLES_DIR = "/data/samples"
 XSD_DIR = "/data/xsd"
 SCHEMATRON_DIR = "/data/schematron"
 ADDRESSES_DIR = "/data/addresses"
+WSSEC_DEBUG_DIR = DEBUG_DIR
 PDF_UPLOAD_DIR = "/data/pdf_uploads"
 PDF_XML_DIR = "/data/pdf_transform_xml"
 PDF_XSD_PATH = os.path.join(XSD_DIR, "pdf_invoice_transform.xsd")
@@ -58,6 +59,7 @@ SOAP12_NS = "http://www.w3.org/2003/05/soap-envelope"
 
 os.makedirs(INVOICE_DIR, exist_ok=True)
 os.makedirs(ADDRESSES_DIR, exist_ok=True)
+os.makedirs(WSSEC_DEBUG_DIR, exist_ok=True)
 os.makedirs(PDF_UPLOAD_DIR, exist_ok=True)
 os.makedirs(PDF_XML_DIR, exist_ok=True)
 
@@ -1189,6 +1191,15 @@ async def wssec_debug_run_sdk_call(request: Request):
         )
 
     return JSONResponse(_json_safe(result))
+
+
+@app.get("/api/wssec-debug/file")
+def wssec_debug_file(path: str = Query(...)):
+    base = os.path.abspath(WSSEC_DEBUG_DIR)
+    target = os.path.abspath(path)
+    if not target.startswith(base) or not os.path.exists(target):
+        return JSONResponse({"ok": False, "error": "Invalid path"}, status_code=400)
+    return FileResponse(target, filename=os.path.basename(target))
 
 
 @app.post("/api/soap/call")

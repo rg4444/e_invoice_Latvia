@@ -118,6 +118,19 @@
            class="bg-dark text-light p-3 rounded small"
            style="max-height: 420px; overflow-y: auto; font-family: monospace;"
            hidden></pre>
+      <div id="wssec_downloads" class="mt-3" hidden>
+        <div class="btn-group" role="group" aria-label="Download artifacts">
+          <a id="wssec_open_xml" class="btn btn-sm btn-outline-light" target="_blank" rel="noopener">
+            Open response XML
+          </a>
+          <a id="wssec_download_json" class="btn btn-sm btn-outline-light" target="_blank" rel="noopener">
+            Download JSON
+          </a>
+          <a id="wssec_download_csv" class="btn btn-sm btn-outline-light" target="_blank" rel="noopener">
+            Download CSV
+          </a>
+        </div>
+      </div>
       <p class="text-muted mt-2 small">
         Each run saves the full request and response to
         <code>data/addresses/wssec_debug/</code> for offline inspection.
@@ -135,6 +148,10 @@
   const useConfigCerts = document.getElementById('wssec_use_config_certs');
   const pfxPathInput = document.getElementById('wssec_pfx_path');
   const pfxPasswordInput = document.getElementById('wssec_pfx_password');
+  const downloadsBox = document.getElementById('wssec_downloads');
+  const openXmlLink = document.getElementById('wssec_open_xml');
+  const downloadJsonLink = document.getElementById('wssec_download_json');
+  const downloadCsvLink = document.getElementById('wssec_download_csv');
 
   function toggleCertInputs() {
     const useConfig = useConfigCerts.checked;
@@ -153,6 +170,7 @@
 
     resultBox.hidden = false;
     resultBox.textContent = "Running SDK call...\n";
+    downloadsBox.hidden = true;
 
     try {
       const payload = {
@@ -197,6 +215,34 @@
         }
         if (data.soap_response_path) {
           lines.push("SOAP response: " + data.soap_response_path);
+        }
+        const responsePath = data.saved_response_path || data.response_saved_path;
+        const jsonPath = data.response_json_path;
+        const csvPath = data.response_csv_path;
+        const fileEndpoint = '/api/wssec-debug/file?path=';
+        if (responsePath) {
+          openXmlLink.href = fileEndpoint + encodeURIComponent(responsePath);
+          openXmlLink.classList.remove('disabled');
+        } else {
+          openXmlLink.removeAttribute('href');
+          openXmlLink.classList.add('disabled');
+        }
+        if (jsonPath) {
+          downloadJsonLink.href = fileEndpoint + encodeURIComponent(jsonPath);
+          downloadJsonLink.classList.remove('disabled');
+        } else {
+          downloadJsonLink.removeAttribute('href');
+          downloadJsonLink.classList.add('disabled');
+        }
+        if (csvPath) {
+          downloadCsvLink.href = fileEndpoint + encodeURIComponent(csvPath);
+          downloadCsvLink.classList.remove('disabled');
+        } else {
+          downloadCsvLink.removeAttribute('href');
+          downloadCsvLink.classList.add('disabled');
+        }
+        if (responsePath || jsonPath || csvPath) {
+          downloadsBox.hidden = false;
         }
         if (data.fault_reason) {
           lines.push("Fault reason: " + data.fault_reason);
