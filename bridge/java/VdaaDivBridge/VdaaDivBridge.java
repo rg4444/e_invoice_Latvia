@@ -2,6 +2,7 @@ import java.io.FileInputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -216,11 +217,11 @@ public class VdaaDivBridge {
             context = JAXBContext.newInstance(payload.getClass());
             JAXBIntrospector introspector = context.createJAXBIntrospector();
             if (introspector.getElementName(payload) == null) {
-                if (payload instanceof GetInitialAddresseeRecordListInput) {
-                    ObjectFactory factory = new ObjectFactory();
-                    toMarshal = factory.createGetInitialAddresseeRecordListInput(
-                        (GetInitialAddresseeRecordListInput) payload
-                    );
+                toMarshal = wrapWithObjectFactory(payload);
+                if (toMarshal instanceof JAXBElement) {
+                    context = JAXBContext.newInstance(((JAXBElement<?>) toMarshal).getDeclaredType());
+                } else {
+                    context = JAXBContext.newInstance(toMarshal.getClass());
                 }
             }
         }
@@ -229,6 +230,32 @@ public class VdaaDivBridge {
         try (OutputStream output = Files.newOutputStream(outputPath)) {
             marshaller.marshal(toMarshal, output);
         }
+    }
+
+    private static Object wrapWithObjectFactory(Object payload) {
+        if (payload == null) {
+            return null;
+        }
+        ObjectFactory factory = new ObjectFactory();
+        Method[] methods = ObjectFactory.class.getMethods();
+        for (Method method : methods) {
+            if (!method.getName().startsWith("create")) {
+                continue;
+            }
+            Class<?>[] params = method.getParameterTypes();
+            if (params.length != 1) {
+                continue;
+            }
+            if (!params[0].isAssignableFrom(payload.getClass())) {
+                continue;
+            }
+            try {
+                return method.invoke(factory, payload);
+            } catch (Exception ignore) {
+                // keep looking for another applicable factory method
+            }
+        }
+        return payload;
     }
 
     private static String escapeJson(String value) {
